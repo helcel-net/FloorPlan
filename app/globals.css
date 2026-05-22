@@ -154,6 +154,12 @@ body {
   gap: 0.5rem;
 }
 
+.mode-btn.mode-btn-active {
+  background: #2f6f5e;
+  color: #fff;
+  border-color: #2f6f5e;
+}
+
 .mode-btn {
   position: relative;
   width: 64px;
@@ -165,10 +171,7 @@ body {
   font-weight: 700;
 }
 
-.mode-btn-active {
-  background: #2f6f5e;
-  color: #fff;
-}
+
 
 .place-switches {
   display: flex;
