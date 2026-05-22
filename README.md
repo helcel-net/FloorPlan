@@ -1,4 +1,4 @@
-# Japanese Floor Plan (jpfp)
+# [Floor Plan](https://helcel-net.github.io/FloorPlan/)
 
 Interactive floor plan editor built with Next.js App Router.
 You can draw walls, split walls, place doors/windows/furniture, and save plans locally.
