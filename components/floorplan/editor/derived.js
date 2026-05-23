@@ -1,7 +1,7 @@
 import { EPS, FLOOR_MATERIALS, GRID, WALL_MATERIALS } from '../config/constants';
-import { clampPoint, dist, snapToGrid } from '../core/geometry';
+import { clampPoint, dist } from '../core/geometry';
 import { buildRoomRegions, collectRoomWallIds, isRegionBoundedByClosedConnectedWalls } from '../core/rooms';
-import { projectPointOnWall, snapToHalfGrid } from './utils';
+import { isWallOpeningFixture, projectPointOnWall, snapToHalfGrid } from './utils';
 
 export function buildFloorColorByValue() {
   return Object.fromEntries(FLOOR_MATERIALS.map((item) => [item.value, item.color]));
@@ -11,7 +11,7 @@ export function buildEffectiveWalls(walls, fixtures, baseUnitM) {
   return walls.flatMap((wall) => {
     const wallLen = Math.max(EPS, dist(wall.start, wall.end));
     const ranges = fixtures
-      .filter((fixture) => (fixture.kind === 'door' || fixture.kind === 'window') && fixture.wallId === wall.id)
+      .filter((fixture) => isWallOpeningFixture(fixture) && fixture.wallId === wall.id)
       .map((fixture) => {
         const widthPx = ((Number(fixture.widthM) || 0.8) / baseUnitM) * GRID;
         const projection = projectPointOnWall(fixture.position, wall);
@@ -168,7 +168,7 @@ export function buildPlacePreviewFixture({
   const wall = findWallAtPoint(hoverRawPoint, 14);
   if (!wall) return null;
   const projected = projectPointOnWall(hoverRawPoint, wall);
-  const position = snapToGrid(projected.x, projected.y);
+  const position = { x: projected.x, y: projected.y };
   const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
   const wallDx = wall.end.x - wall.start.x;
   const wallDy = wall.end.y - wall.start.y;

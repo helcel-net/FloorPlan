@@ -1,5 +1,6 @@
 import { EPS, SNAP_RADIUS } from '../config/constants';
 import { dist, getSvgPoint, pointToSegmentDistance, snapToGrid } from '../core/geometry';
+import { isWallOpeningFixture } from './utils';
 
 export function findWallAtPointInWalls(walls, point, maxDistance = 10) {
   let hit = null;
@@ -32,7 +33,7 @@ export function findVertexAtPointInWalls(walls, point) {
 export function findFixtureAtPointInFixtures(fixtures, point, baseUnitM, grid) {
   for (let i = fixtures.length - 1; i >= 0; i -= 1) {
     const fixture = fixtures[i];
-    if (fixture.kind === 'door' || fixture.kind === 'window') {
+    if (isWallOpeningFixture(fixture)) {
       const widthPx = ((Number(fixture.widthM) || 0.8) / baseUnitM) * grid;
       const half = widthPx / 2;
       const angle = Number(fixture.angle) || 0;

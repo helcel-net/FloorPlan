@@ -24,6 +24,7 @@ import {
 } from './floorplan/editor/catalog';
 import {
   findWallAtPointInSet,
+  isWallOpeningFixture,
   normalizeAngleDeg,
   projectPointOnWall,
   snapToHalfGrid
@@ -242,11 +243,11 @@ export default function FloorPlanEditor() {
     setFixtures((current) => {
       let changed = false;
       const rebound = current.map((fixture) => {
-        if (fixture.kind !== 'door' && fixture.kind !== 'window') return fixture;
+        if (!isWallOpeningFixture(fixture)) return fixture;
         const wall = findWallAtPointInSet(fixture.position, nextWalls);
         if (!wall) return fixture;
         const projected = projectPointOnWall(fixture.position, wall);
-        const position = snapToGrid(projected.x, projected.y);
+        const position = { x: projected.x, y: projected.y };
         const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
         let swingSide = fixture.swingSide;
         if (fixture.kind === 'door') {
@@ -602,7 +603,7 @@ export default function FloorPlanEditor() {
       const wall = findWallAtPoint(raw, 14);
       if (!wall) return;
       const projected = projectPointOnWall(raw, wall);
-      const position = snapToGrid(projected.x, projected.y);
+      const position = { x: projected.x, y: projected.y };
       const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
       if (placeKind === 'door') {
         const wallDx = wall.end.x - wall.start.x;

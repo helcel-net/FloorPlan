@@ -1,9 +1,9 @@
 import { GRID } from '../config/constants';
-import { normalizeFurnitureType } from '../editor/utils';
+import { isWallOpeningFixture, normalizeFurnitureType } from '../editor/utils';
 
 export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtureId }) {
   return renderFixtures.map((fixture) => {
-    if (fixture.kind === 'door' || fixture.kind === 'window') {
+    if (isWallOpeningFixture(fixture)) {
       const widthPx = ((Number(fixture.widthM) || 0.8) / baseUnitM) * GRID;
       const half = widthPx / 2;
       const angle = Number(fixture.angle) || 0;

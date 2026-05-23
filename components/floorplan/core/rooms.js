@@ -1,6 +1,116 @@
 import { EPS, GRID, GRID_CELL_M2 } from '../config/constants';
-import { pointToSegmentDistance, regionIdFromCentroid, toGridVertexKey, toKey } from './geometry';
-import { wallMetersToPx } from './walls';
+import { regionIdFromCentroid, toGridVertexKey, toKey } from './geometry';
+
+const MIN_ROOM_DIMENSION_M = 0.5;
+const MIN_ROOM_FIT_DIAMETER_M = 0.5;
+const MIN_ROOM_AREA_M2 = 0.5;
+
+function parseVertexKey(key) {
+  const [x, y] = key.split(',').map(Number);
+  return { x, y };
+}
+
+function polygonSignedArea(vertices) {
+  let sum = 0;
+  for (let i = 0; i < vertices.length; i += 1) {
+    const a = vertices[i];
+    const b = vertices[(i + 1) % vertices.length];
+    sum += (a.x * b.y) - (b.x * a.y);
+  }
+  return sum / 2;
+}
+
+function polygonCentroid(vertices, signedArea) {
+  if (Math.abs(signedArea) < EPS) {
+    let sx = 0;
+    let sy = 0;
+    for (const v of vertices) {
+      sx += v.x;
+      sy += v.y;
+    }
+    return { x: sx / Math.max(1, vertices.length), y: sy / Math.max(1, vertices.length) };
+  }
+
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < vertices.length; i += 1) {
+    const a = vertices[i];
+    const b = vertices[(i + 1) % vertices.length];
+    const cross = (a.x * b.y) - (b.x * a.y);
+    cx += (a.x + b.x) * cross;
+    cy += (a.y + b.y) * cross;
+  }
+  const denom = 6 * signedArea;
+  return { x: cx / denom, y: cy / denom };
+}
+
+function pointOnSegment(point, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const cross = ((point.x - a.x) * dy) - ((point.y - a.y) * dx);
+  if (Math.abs(cross) > EPS) return false;
+  const dot = ((point.x - a.x) * (point.x - b.x)) + ((point.y - a.y) * (point.y - b.y));
+  return dot <= EPS;
+}
+
+function pointInPolygon(point, polygon) {
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const a = polygon[j];
+    const b = polygon[i];
+
+    if (pointOnSegment(point, a, b)) return true;
+
+    const intersects = ((a.y > point.y) !== (b.y > point.y))
+      && (point.x < ((b.x - a.x) * (point.y - a.y)) / ((b.y - a.y) || EPS) + a.x);
+    if (intersects) inside = !inside;
+  }
+
+  return inside;
+}
+
+function pointToSegmentDistance(point, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = (dx * dx) + (dy * dy);
+  if (len2 < EPS) return Math.hypot(point.x - a.x, point.y - a.y);
+  const t = Math.max(0, Math.min(1, (((point.x - a.x) * dx) + ((point.y - a.y) * dy)) / len2));
+  const px = a.x + (t * dx);
+  const py = a.y + (t * dy);
+  return Math.hypot(point.x - px, point.y - py);
+}
+
+function minDistanceToPolygonEdges(point, polygon) {
+  let minD = Infinity;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    minD = Math.min(minD, pointToSegmentDistance(point, a, b));
+  }
+  return minD;
+}
+
+function canPlaceCircleInRoom(vertices, cells, requiredDiameterPx, centroid) {
+  const requiredRadius = requiredDiameterPx / 2;
+  if (requiredRadius <= EPS) return true;
+
+  // Try centroid first; if it fails, try cell centers (robust for irregular shapes).
+  if (pointInPolygon(centroid, vertices) && minDistanceToPolygonEdges(centroid, vertices) + EPS >= requiredRadius) {
+    return true;
+  }
+
+  for (const cell of cells) {
+    const p = { x: (cell.x + 0.5) * GRID, y: (cell.y + 0.5) * GRID };
+    if (!pointInPolygon(p, vertices)) continue;
+    if (minDistanceToPolygonEdges(p, vertices) + EPS >= requiredRadius) return true;
+    const p2 = { x: (cell.x) * GRID, y: (cell.y) * GRID };
+    if (!pointInPolygon(p2, vertices)) continue;
+    if (minDistanceToPolygonEdges(p2, vertices) + EPS >= requiredRadius) return true;
+  }
+
+  return false;
+}
 
 function computePrincipalExtentsM(cells, baseUnitM) {
   if (!cells.length) return { widthM: 0, heightM: 0 };
@@ -25,7 +135,6 @@ function computePrincipalExtentsM(cells, baseUnitM) {
     sxy += dx * dy;
   }
 
-  // Principal axis angle from covariance matrix.
   const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
   const ux = Math.cos(theta);
   const uy = Math.sin(theta);
@@ -48,7 +157,6 @@ function computePrincipalExtentsM(cells, baseUnitM) {
     maxV = Math.max(maxV, v);
   }
 
-  // +1 cell keeps parity with cell-based dimension interpretation.
   const extentUM = (maxU - minU + 1) * baseUnitM;
   const extentVM = (maxV - minV + 1) * baseUnitM;
   return {
@@ -57,226 +165,218 @@ function computePrincipalExtentsM(cells, baseUnitM) {
   };
 }
 
-export function buildRoomRegions(walls, wallThicknessByTypeM, baseUnitM) {
-  if (!walls?.length) return [];
-  const MIN_ROOM_DIMENSION_M = 0.5;
+function canonicalCycle(vertexKeys) {
+  const n = vertexKeys.length;
+  if (!n) return '';
 
-  let minWorldX = Infinity;
-  let minWorldY = Infinity;
-  let maxWorldX = -Infinity;
-  let maxWorldY = -Infinity;
-
-  for (const wall of walls) {
-    minWorldX = Math.min(minWorldX, wall.start.x, wall.end.x);
-    minWorldY = Math.min(minWorldY, wall.start.y, wall.end.y);
-    maxWorldX = Math.max(maxWorldX, wall.start.x, wall.end.x);
-    maxWorldY = Math.max(maxWorldY, wall.start.y, wall.end.y);
+  const forward = [];
+  const backward = [];
+  for (let shift = 0; shift < n; shift += 1) {
+    const f = [];
+    const b = [];
+    for (let i = 0; i < n; i += 1) {
+      f.push(vertexKeys[(shift + i) % n]);
+      b.push(vertexKeys[(shift - i + n) % n]);
+    }
+    forward.push(f.join('|'));
+    backward.push(b.join('|'));
   }
 
-  const BOUNDS_MARGIN_CELLS = 4;
-  const margin = BOUNDS_MARGIN_CELLS * GRID;
-  const originX = Math.floor((minWorldX - margin) / GRID) * GRID;
-  const originY = Math.floor((minWorldY - margin) / GRID) * GRID;
-  const endX = Math.ceil((maxWorldX + margin) / GRID) * GRID;
-  const endY = Math.ceil((maxWorldY + margin) / GRID) * GRID;
-  const cols = Math.max(1, Math.round((endX - originX) / GRID));
-  const rows = Math.max(1, Math.round((endY - originY) / GRID));
-  const SUPER = 6;
-  const superCols = cols * SUPER;
-  const superRows = rows * SUPER;
-  const superCellSize = GRID / SUPER;
-  const MIN_REGION_SUPER_CELLS = 2;
-  const blocked = new Set();
+  return [...forward, ...backward].sort()[0];
+}
 
-  function superKey(x, y) {
-    return `${x},${y}`;
+function buildFacesFromWalls(walls) {
+  const outgoingByVertex = new Map();
+
+  function addHalfEdge(from, to, wallId) {
+    if (!outgoingByVertex.has(from)) outgoingByVertex.set(from, []);
+    const fromP = parseVertexKey(from);
+    const toP = parseVertexKey(to);
+    outgoingByVertex.get(from).push({
+      from,
+      to,
+      wallId,
+      angle: Math.atan2(toP.y - fromP.y, toP.x - fromP.x)
+    });
   }
 
-  function markSuper(x, y) {
-    if (x < 0 || y < 0 || x >= superCols || y >= superRows) return;
-    blocked.add(superKey(x, y));
+  for (const wall of walls || []) {
+    const a = toGridVertexKey(wall.start);
+    const b = toGridVertexKey(wall.end);
+    if (a === b) continue;
+    addHalfEdge(a, b, wall.id);
+    addHalfEdge(b, a, wall.id);
   }
 
-  function dilateBlockedOnce() {
-    const extra = [];
-    for (const key of blocked) {
-      const [x, y] = key.split(',').map(Number);
-      for (const d of [
-        { dx: 1, dy: 0 },
-        { dx: -1, dy: 0 },
-        { dx: 0, dy: 1 },
-        { dx: 0, dy: -1 }
-      ]) {
-        const nx = x + d.dx;
-        const ny = y + d.dy;
-        if (nx < 0 || ny < 0 || nx >= superCols || ny >= superRows) continue;
-        const nKey = superKey(nx, ny);
-        if (!blocked.has(nKey)) extra.push(nKey);
+  for (const edges of outgoingByVertex.values()) {
+    edges.sort((a, b) => a.angle - b.angle);
+  }
+
+  const visited = new Set();
+  const faces = [];
+
+  function halfEdgeKey(edge) {
+    return `${edge.from}>${edge.to}@${edge.wallId}`;
+  }
+
+  const allEdges = [];
+  for (const edges of outgoingByVertex.values()) allEdges.push(...edges);
+
+  for (const seed of allEdges) {
+    const seedKey = halfEdgeKey(seed);
+    if (visited.has(seedKey)) continue;
+
+    const cycleEdges = [];
+    const cycleVertices = [];
+    let cur = seed;
+    let guard = 0;
+    const maxSteps = Math.max(8, allEdges.length * 2);
+
+    while (guard < maxSteps) {
+      guard += 1;
+      const curKey = halfEdgeKey(cur);
+      if (visited.has(curKey)) break;
+      visited.add(curKey);
+      cycleEdges.push(cur);
+      cycleVertices.push(cur.from);
+
+      const outgoing = outgoingByVertex.get(cur.to) || [];
+      if (!outgoing.length) break;
+
+      const reverseIdx = outgoing.findIndex((e) => e.to === cur.from && e.wallId === cur.wallId);
+      if (reverseIdx < 0) break;
+
+      const next = outgoing[(reverseIdx - 1 + outgoing.length) % outgoing.length];
+      cur = next;
+
+      if (cur.from === seed.from && cur.to === seed.to && cur.wallId === seed.wallId) {
+        const points = cycleVertices.map(parseVertexKey);
+        const signedArea = polygonSignedArea(points);
+        if (Math.abs(signedArea) > EPS && cycleVertices.length >= 3) {
+          faces.push({
+            vertexKeys: cycleVertices,
+            wallIds: Array.from(new Set(cycleEdges.map((e) => e.wallId))),
+            signedArea
+          });
+        }
+        break;
       }
     }
-    for (const key of extra) blocked.add(key);
   }
 
-  for (const wall of walls) {
-    const wallWidth = wallMetersToPx(wallThicknessByTypeM?.[wall.type], baseUnitM);
-    const wallHalfThickness = Math.max(superCellSize * 0.5, wallWidth / 2);
-    const minX = Math.max(0, Math.floor((Math.min(wall.start.x, wall.end.x) - originX) / superCellSize) - 1);
-    const maxX = Math.min(superCols - 1, Math.ceil((Math.max(wall.start.x, wall.end.x) - originX) / superCellSize) + 1);
-    const minY = Math.max(0, Math.floor((Math.min(wall.start.y, wall.end.y) - originY) / superCellSize) - 1);
-    const maxY = Math.min(superRows - 1, Math.ceil((Math.max(wall.start.y, wall.end.y) - originY) / superCellSize) + 1);
+  const dedup = new Map();
+  for (const face of faces) {
+    const key = canonicalCycle(face.vertexKeys);
+    if (!key) continue;
+    const prev = dedup.get(key);
+    if (!prev || Math.abs(face.signedArea) > Math.abs(prev.signedArea)) dedup.set(key, face);
+  }
 
-    for (let sy = minY; sy <= maxY; sy += 1) {
-      for (let sx = minX; sx <= maxX; sx += 1) {
-        const px = originX + (sx + 0.5) * superCellSize;
-        const py = originY + (sy + 0.5) * superCellSize;
-        const d = pointToSegmentDistance({ x: px, y: py }, wall.start, wall.end);
-        if (d <= wallHalfThickness + EPS) markSuper(sx, sy);
-      }
+  return [...dedup.values()];
+}
+
+function rasterizeRoomCellsFromPolygon(vertices) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const v of vertices) {
+    minX = Math.min(minX, v.x);
+    minY = Math.min(minY, v.y);
+    maxX = Math.max(maxX, v.x);
+    maxY = Math.max(maxY, v.y);
+  }
+
+  const minCellX = Math.floor(minX / GRID) - 1;
+  const maxCellX = Math.ceil(maxX / GRID) + 1;
+  const minCellY = Math.floor(minY / GRID) - 1;
+  const maxCellY = Math.ceil(maxY / GRID) + 1;
+
+  const cells = [];
+  for (let y = minCellY; y <= maxCellY; y += 1) {
+    for (let x = minCellX; x <= maxCellX; x += 1) {
+      const center = { x: (x + 0.5) * GRID, y: (y + 0.5) * GRID };
+      if (!pointInPolygon(center, vertices)) continue;
+      cells.push({ x, y, coverage: 1 });
     }
   }
 
-  dilateBlockedOnce();
+  return cells;
+}
 
-  const outside = new Set();
-  const outsideQueue = [];
-  const componentSeen = new Set();
+export function buildRoomRegions(walls, _wallThicknessByTypeM, baseUnitM) {
+  if (!walls?.length) return[];// || !Number.isFinite(baseUnitM) || baseUnitM <= EPS) return [];
 
-  function pushOutside(x, y) {
-    if (x < 0 || y < 0 || x >= superCols || y >= superRows) return;
-    const key = superKey(x, y);
-    if (outside.has(key) || blocked.has(key)) return;
-    outside.add(key);
-    outsideQueue.push({ x, y });
-  }
-
-  for (let x = 0; x < superCols; x += 1) {
-    pushOutside(x, 0);
-    pushOutside(x, superRows - 1);
-  }
-  for (let y = 0; y < superRows; y += 1) {
-    pushOutside(0, y);
-    pushOutside(superCols - 1, y);
-  }
-
-  while (outsideQueue.length) {
-    const cur = outsideQueue.shift();
-    for (const d of [
-      { dx: 1, dy: 0 },
-      { dx: -1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: 0, dy: -1 }
-    ]) {
-      const nx = cur.x + d.dx;
-      const ny = cur.y + d.dy;
-      if (nx < 0 || ny < 0 || nx >= superCols || ny >= superRows) continue;
-      const key = superKey(nx, ny);
-      if (blocked.has(key) || outside.has(key)) continue;
-      outside.add(key);
-      outsideQueue.push({ x: nx, y: ny });
-    }
-  }
+  const faces = buildFacesFromWalls(walls);
+  if (!faces.length) return [];
 
   const regions = [];
-  for (let sy = 0; sy < superRows; sy += 1) {
-    for (let sx = 0; sx < superCols; sx += 1) {
-      const seed = superKey(sx, sy);
-      if (blocked.has(seed) || outside.has(seed) || componentSeen.has(seed)) continue;
 
-      const q = [{ x: sx, y: sy }];
-      componentSeen.add(seed);
-      const coverage = new Map();
-      let sumX = 0;
-      let sumY = 0;
-      let count = 0;
+  for (const face of faces) {
+    if (face.signedArea <= EPS) continue;
 
-      while (q.length) {
-        const cur = q.shift();
-        const worldCenterX = originX + (cur.x + 0.5) * superCellSize;
-        const worldCenterY = originY + (cur.y + 0.5) * superCellSize;
-        const bx = Math.floor(worldCenterX / GRID);
-        const by = Math.floor(worldCenterY / GRID);
-        const bKey = toKey(bx, by);
-        coverage.set(bKey, (coverage.get(bKey) || 0) + 1);
+    const vertices = face.vertexKeys.map(parseVertexKey);
+    const cells = rasterizeRoomCellsFromPolygon(vertices);
+    if (cells.length < 2) continue;
 
-        sumX += worldCenterX / GRID;
-        sumY += worldCenterY / GRID;
-        count += 1;
+    const centroid = polygonCentroid(vertices, face.signedArea);
+    const { widthM, heightM } = computePrincipalExtentsM(cells, baseUnitM);
+    if (widthM < MIN_ROOM_DIMENSION_M || heightM < MIN_ROOM_DIMENSION_M) continue;
+    const minRoomFitDiameterPx = (MIN_ROOM_FIT_DIAMETER_M / baseUnitM) * GRID;
+    if (!canPlaceCircleInRoom(vertices, cells, minRoomFitDiameterPx, centroid)) continue;
 
-        for (const d of [
-          { dx: 1, dy: 0 },
-          { dx: -1, dy: 0 },
-          { dx: 0, dy: 1 },
-          { dx: 0, dy: -1 }
-        ]) {
-          const nx = cur.x + d.dx;
-          const ny = cur.y + d.dy;
-          if (nx < 0 || ny < 0 || nx >= superCols || ny >= superRows) continue;
-          const key = superKey(nx, ny);
-          if (blocked.has(key) || outside.has(key) || componentSeen.has(key)) continue;
-          componentSeen.add(key);
-          q.push({ x: nx, y: ny });
-        }
-      }
+    const areaPx2 = Math.abs(face.signedArea);
+    const areaInGridCells = areaPx2 / (GRID * GRID);
+    const areaM2 = areaInGridCells * GRID_CELL_M2 * baseUnitM * baseUnitM;
+    if (areaM2 < MIN_ROOM_AREA_M2) continue;
 
-      if (count < MIN_REGION_SUPER_CELLS) continue;
-
-      const cells = [...coverage.entries()].map(([cellKey, hits]) => {
-        const [x, y] = cellKey.split(',').map(Number);
-        return { x, y, coverage: hits / (SUPER * SUPER) };
-      });
-      if (!cells.length) continue;
-
-      const { widthM, heightM } = computePrincipalExtentsM(cells, baseUnitM);
-      if (widthM < MIN_ROOM_DIMENSION_M || heightM < MIN_ROOM_DIMENSION_M) continue;
-
-      const centroid = {
-        x: (sumX / count) * GRID,
-        y: (sumY / count) * GRID
-      };
-      const stableKey = `${regionIdFromCentroid(centroid)}:${Math.round(count / 8)}`;
-      const areaM2 = cells.length * GRID_CELL_M2 * baseUnitM * baseUnitM;
-      regions.push({ key: stableKey, cells, centroid, areaM2, widthM, heightM });
-    }
+    const stableKey = `${regionIdFromCentroid(centroid)}:${Math.round(areaInGridCells / 2)}`;
+    regions.push({
+      key: stableKey,
+      cells,
+      centroid,
+      areaM2,
+      widthM,
+      heightM,
+      wallIds: face.wallIds
+    });
   }
 
   return regions;
 }
 
 export function collectRoomWallIds(region, walls) {
-  const roomCells = new Set(region.cells.map((c) => toKey(c.x, c.y)));
+  if (Array.isArray(region?.wallIds) && region.wallIds.length) return region.wallIds;
+
+  const roomCells = new Set((region?.cells || []).map((c) => toKey(c.x, c.y)));
+  if (!roomCells.size) return [];
+
   const wallIds = [];
   const sideProbe = GRID * 0.35;
 
-  for (const wall of walls) {
+  for (const wall of walls || []) {
     const dx = wall.end.x - wall.start.x;
     const dy = wall.end.y - wall.start.y;
     const len = Math.hypot(dx, dy);
     if (len < EPS) continue;
+
     const nx = -dy / len;
     const ny = dx / len;
-    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / (GRID / 3)));
-    let boundsRoom = false;
+    const steps = Math.max(1, Math.ceil(len / (GRID / 3)));
 
     for (let i = 0; i <= steps; i += 1) {
       const t = i / steps;
       const px = wall.start.x + dx * t;
       const py = wall.start.y + dy * t;
 
-      const leftCellX = Math.floor((px + nx * sideProbe) / GRID);
-      const leftCellY = Math.floor((py + ny * sideProbe) / GRID);
-      const rightCellX = Math.floor((px - nx * sideProbe) / GRID);
-      const rightCellY = Math.floor((py - ny * sideProbe) / GRID);
-
-      const leftInside = roomCells.has(toKey(leftCellX, leftCellY));
-      const rightInside = roomCells.has(toKey(rightCellX, rightCellY));
-
+      const leftInside = roomCells.has(toKey(Math.floor((px + nx * sideProbe) / GRID), Math.floor((py + ny * sideProbe) / GRID)));
+      const rightInside = roomCells.has(toKey(Math.floor((px - nx * sideProbe) / GRID), Math.floor((py - ny * sideProbe) / GRID)));
       if (leftInside !== rightInside) {
-        boundsRoom = true;
+        wallIds.push(wall.id);
         break;
       }
     }
-
-    if (boundsRoom) wallIds.push(wall.id);
   }
 
   return wallIds;
@@ -303,39 +403,49 @@ export function isRegionBoundedByClosedConnectedWalls(region, walls) {
   }
 
   for (const wall of roomWalls) {
-    const startKey = toGridVertexKey(wall.start);
-    const endKey = toGridVertexKey(wall.end);
-    addEdge(startKey, endKey);
+    addEdge(toGridVertexKey(wall.start), toGridVertexKey(wall.end));
   }
 
-  // Closed loops should not have dangling ends.
   for (const degree of degreeByVertex.values()) {
     if (degree < 2) return false;
   }
 
-  // Boundary graph must be one connected component.
   const vertices = [...degreeByVertex.keys()];
   if (!vertices.length) return false;
+
   const seen = new Set([vertices[0]]);
   const queue = [vertices[0]];
-  while (queue.length) {
-    const current = queue.shift();
-    for (const next of adjacency.get(current) || []) {
+  let qIndex = 0;
+
+  while (qIndex < queue.length) {
+    const cur = queue[qIndex++];
+    for (const next of adjacency.get(cur) || []) {
       if (seen.has(next)) continue;
       seen.add(next);
       queue.push(next);
     }
   }
+
   if (seen.size !== vertices.length) return false;
+  return roomWalls.length >= vertices.length;
+}
 
-  // At least one cycle must exist.
-  if (roomWalls.length < vertices.length) return false;
+function vertexIsCorner(dirs) {
+  if (!dirs.length) return false;
+  if (dirs.length === 1) return true;
 
-  return true;
+  for (let i = 0; i < dirs.length; i += 1) {
+    for (let j = i + 1; j < dirs.length; j += 1) {
+      const dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
+      if (Math.abs(dot) < 0.999) return true;
+    }
+  }
+
+  return false;
 }
 
 export function collectRoomCornerVertexKeysFromCells(cells) {
-  const roomCells = new Set(cells.map((c) => toKey(c.x, c.y)));
+  const roomCells = new Set((cells || []).map((c) => toKey(c.x, c.y)));
   const vertexDirs = new Map();
 
   function addDir(vx, vy, dx, dy) {
@@ -344,7 +454,7 @@ export function collectRoomCornerVertexKeysFromCells(cells) {
     vertexDirs.get(key).push({ dx, dy });
   }
 
-  for (const cell of cells) {
+  for (const cell of cells || []) {
     const x = cell.x;
     const y = cell.y;
 
@@ -367,30 +477,12 @@ export function collectRoomCornerVertexKeysFromCells(cells) {
   }
 
   const out = [];
-  for (const [k, dirs] of vertexDirs.entries()) {
-    if (!dirs.length) continue;
-    if (dirs.length === 1) {
-      const [cx, cy] = k.split(',').map(Number);
-      out.push(toKey(cx * GRID, cy * GRID));
-      continue;
-    }
-
-    let isCorner = false;
-    for (let i = 0; i < dirs.length && !isCorner; i += 1) {
-      for (let j = i + 1; j < dirs.length; j += 1) {
-        const dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
-        if (Math.abs(dot) < 0.999) {
-          isCorner = true;
-          break;
-        }
-      }
-    }
-
-    if (isCorner) {
-      const [cx, cy] = k.split(',').map(Number);
-      out.push(toKey(cx * GRID, cy * GRID));
-    }
+  for (const [vertexKey, dirs] of vertexDirs.entries()) {
+    if (!vertexIsCorner(dirs)) continue;
+    const [vx, vy] = vertexKey.split(',').map(Number);
+    out.push(toKey(vx * GRID, vy * GRID));
   }
+
   return out;
 }
 
@@ -403,40 +495,26 @@ export function collectRoomCornerVertexKeysFromWalls(walls, wallIds) {
     dirsByVertex.get(key).push({ dx, dy });
   }
 
-  for (const wall of walls) {
+  for (const wall of walls || []) {
     if (!ids.has(wall.id)) continue;
-    const sKey = toGridVertexKey(wall.start);
-    const eKey = toGridVertexKey(wall.end);
+
     const dx = wall.end.x - wall.start.x;
     const dy = wall.end.y - wall.start.y;
     const len = Math.hypot(dx, dy);
     if (len < EPS) continue;
 
-    const ux = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0;
-    const uy = Math.abs(dy) >= Math.abs(dx) ? Math.sign(dy) : 0;
+    const ux = dx / len;
+    const uy = dy / len;
+    const sKey = toGridVertexKey(wall.start);
+    const eKey = toGridVertexKey(wall.end);
+
     addDir(sKey, ux, uy);
     addDir(eKey, -ux, -uy);
   }
 
   const out = [];
-  for (const [key, dirs] of dirsByVertex.entries()) {
-    if (!dirs.length) continue;
-    if (dirs.length === 1) {
-      out.push(key);
-      continue;
-    }
-
-    let isCorner = false;
-    for (let i = 0; i < dirs.length && !isCorner; i += 1) {
-      for (let j = i + 1; j < dirs.length; j += 1) {
-        const dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
-        if (Math.abs(dot) < 0.999) {
-          isCorner = true;
-          break;
-        }
-      }
-    }
-    if (isCorner) out.push(key);
+  for (const [vertexKey, dirs] of dirsByVertex.entries()) {
+    if (vertexIsCorner(dirs)) out.push(vertexKey);
   }
 
   return out;
@@ -444,30 +522,26 @@ export function collectRoomCornerVertexKeysFromWalls(walls, wallIds) {
 
 export function collectRoomCornerEndpointHandles(walls, room) {
   const cornerKeys = new Set([
-    ...collectRoomCornerVertexKeysFromCells(room.cells || []),
-    ...collectRoomCornerVertexKeysFromWalls(walls, room.wallIds || [])
+    ...collectRoomCornerVertexKeysFromCells(room?.cells || []),
+    ...collectRoomCornerVertexKeysFromWalls(walls, room?.wallIds || [])
   ]);
-  const roomWallIds = new Set(room.wallIds || []);
+  const roomWallIds = new Set(room?.wallIds || []);
   const handles = [];
 
-  for (const wall of walls) {
+  for (const wall of walls || []) {
     if (!roomWallIds.has(wall.id)) continue;
-    const startKey = toGridVertexKey(wall.start);
-    const endKey = toGridVertexKey(wall.end);
-    if (cornerKeys.has(startKey)) handles.push({ wallId: wall.id, endpoint: 'start' });
-    if (cornerKeys.has(endKey)) handles.push({ wallId: wall.id, endpoint: 'end' });
+    if (cornerKeys.has(toGridVertexKey(wall.start))) handles.push({ wallId: wall.id, endpoint: 'start' });
+    if (cornerKeys.has(toGridVertexKey(wall.end))) handles.push({ wallId: wall.id, endpoint: 'end' });
   }
 
   return handles;
 }
 
 export function collectRoomCornerVertexKeys(walls, room) {
-  return Array.from(
-    new Set([
-      ...collectRoomCornerVertexKeysFromCells(room.cells || []),
-      ...collectRoomCornerVertexKeysFromWalls(walls, room.wallIds || [])
-    ])
-  );
+  return Array.from(new Set([
+    ...collectRoomCornerVertexKeysFromCells(room?.cells || []),
+    ...collectRoomCornerVertexKeysFromWalls(walls, room?.wallIds || [])
+  ]));
 }
 
 export function collectRoomBoundaryVertexKeys(walls, room) {

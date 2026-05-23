@@ -33,6 +33,10 @@ export function normalizeFurnitureType(type) {
   return type || '';
 }
 
+export function isWallOpeningFixture(fixture) {
+  return fixture?.kind === 'door' || fixture?.kind === 'window';
+}
+
 export function findWallAtPointInSet(point, wallSet, maxDistance = Infinity) {
   let hit = null;
   let min = maxDistance;

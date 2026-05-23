@@ -1,6 +1,6 @@
 import { GRID } from '../config/constants';
 import { normalizeAndSplitWalls } from '../core/walls';
-import { roundOutToGrid, roundOutToStep } from './utils';
+import { isWallOpeningFixture, roundOutToGrid, roundOutToStep } from './utils';
 
 function scalePoint(point, factor) {
   return {
@@ -23,7 +23,7 @@ export function scalePlanForBaseUnit({ walls, fixtures, currentBaseUnitM, nextBa
       ...fixture,
       position: scalePoint(fixture.position, factor)
     };
-    if (fixture.kind === 'door' || fixture.kind === 'window') return next;
+    if (isWallOpeningFixture(fixture)) return next;
 
     return {
       ...next,
