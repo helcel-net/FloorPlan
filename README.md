@@ -1,5 +1,7 @@
 # [Floor Plan](https://helcel-net.github.io/FloorPlan/)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/I2I615VP5M)
+
 Interactive floor plan editor built with Next.js App Router.
 You can draw walls, split walls, place doors/windows/furniture, and save plans locally.
 
