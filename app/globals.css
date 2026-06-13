@@ -258,6 +258,11 @@ button.secondary {
   background: #5d5b57;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .canvas-wrap {
   position: relative;
   background: var(--panel);
@@ -283,6 +288,36 @@ button.secondary {
   z-index: 2;
 }
 
+.canvas-top-right-actions {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+  display: flex;
+  z-index: 2;
+}
+
+.floor-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+}
+
+.floor-indicator {
+  min-width: 0;
+  padding: 0 0.2rem;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
 .canvas-icon-btn {
   width: 2.2rem;
   height: 2.2rem;
@@ -299,6 +334,11 @@ button.secondary {
   .canvas-icon-btn {
     background: #3a362f;
     color: #ece7de;
+  }
+
+  .floor-overlay {
+    background: color-mix(in srgb, #2a2723 90%, transparent);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
   }
 }
 

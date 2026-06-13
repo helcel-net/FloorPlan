@@ -66,15 +66,15 @@ export default function EditorPanel({
         <h2><input id="plan-name" value={planName} onChange={(e) => setPlanName(e.target.value)} /></h2>
         <div className="panel-header-actions">
           <div ref={settingsButtonRef}>
-          <button
-            type="button"
-            className={settingsOpen ? 'icon-btn icon-btn-active' : 'icon-btn'}
-            onClick={() => setSettingsOpen((current) => !current)}
-            aria-label={settingsOpen ? 'Close settings' : 'Open settings'}
-            title={settingsOpen ? 'Close settings' : 'Open settings'}
-          >
-            ⚙
-          </button>
+            <button
+              type="button"
+              className={settingsOpen ? 'icon-btn icon-btn-active' : 'icon-btn'}
+              onClick={() => setSettingsOpen((current) => !current)}
+              aria-label={settingsOpen ? 'Close settings' : 'Open settings'}
+              title={settingsOpen ? 'Close settings' : 'Open settings'}
+            >
+              ⚙
+            </button>
           </div>
         </div>
       </div>

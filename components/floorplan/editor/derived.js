@@ -1,7 +1,12 @@
 import { EPS, FLOOR_MATERIALS, GRID, WALL_MATERIALS } from '../config/constants';
 import { clampPoint, dist } from '../core/geometry';
 import { buildRoomRegions, collectRoomWallIds, isRegionBoundedByClosedConnectedWalls } from '../core/rooms';
-import { isWallOpeningFixture, projectPointOnWall, snapToHalfGrid } from './utils';
+import {
+  buildPlacedDoorFixture,
+  buildPlacedFurnitureFixture,
+  buildPlacedWindowFixture
+} from './fixtures';
+import { isWallOpeningFixture, projectPointOnWall } from './utils';
 
 export function buildFloorColorByValue() {
   return Object.fromEntries(FLOOR_MATERIALS.map((item) => [item.value, item.color]));
@@ -134,7 +139,6 @@ export function buildDraggedVertexMeasurements(dragState, dragPreviewPoint, wall
 
 export function buildPlacePreviewFixture({
   toolMode,
-  hoverPoint,
   hoverRawPoint,
   placeKind,
   activeFurniturePresets,
@@ -147,60 +151,43 @@ export function buildPlacePreviewFixture({
   windowWidthM,
   findWallAtPoint
 }) {
-  if (toolMode !== 'place' || !hoverPoint || !hoverRawPoint) return null;
+  if (toolMode !== 'place' || !hoverRawPoint) return null;
 
   if (placeKind === 'furniture') {
     const preset = activeFurniturePresets.find((item) => item.id === furniturePresetId);
     if (!preset) return null;
-    const halfSnapped = snapToHalfGrid(hoverRawPoint.x, hoverRawPoint.y);
-    return {
+    return buildPlacedFurnitureFixture({
       id: 'preview-furniture',
-      kind: 'furniture',
+      rawPoint: hoverRawPoint,
+      preset,
       furnitureType,
-      widthM: preset.widthM,
-      depthM: preset.depthM,
-      angleDeg: furnitureAngleDeg,
-      position: halfSnapped,
+      furnitureAngleDeg,
       isPreview: true
-    };
+    });
   }
 
   const wall = findWallAtPoint(hoverRawPoint, 14);
   if (!wall) return null;
-  const projected = projectPointOnWall(hoverRawPoint, wall);
-  const position = { x: projected.x, y: projected.y };
-  const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
-  const wallDx = wall.end.x - wall.start.x;
-  const wallDy = wall.end.y - wall.start.y;
-  const wallLen = Math.hypot(wallDx, wallDy);
-  const nx = wallLen > EPS ? (-wallDy / wallLen) : 0;
-  const ny = wallLen > EPS ? (wallDx / wallLen) : 0;
-  const sideValue = ((hoverRawPoint.x - projected.x) * nx + (hoverRawPoint.y - projected.y) * ny) >= 0 ? 1 : -1;
 
   if (placeKind === 'door') {
-    return {
+    return buildPlacedDoorFixture({
       id: 'preview-door',
-      kind: 'door',
+      rawPoint: hoverRawPoint,
+      wall,
       doorType,
-      hinge: doorHinge,
-      swingSide: sideValue,
-      widthM: Number(doorWidthM),
-      wallId: wall.id,
-      position,
-      angle,
+      doorHinge,
+      doorWidthM,
       isPreview: true
-    };
+    });
   }
 
-  return {
+  return buildPlacedWindowFixture({
     id: 'preview-window',
-    kind: 'window',
-    widthM: Number(windowWidthM),
-    wallId: wall.id,
-    position,
-    angle,
+    rawPoint: hoverRawPoint,
+    wall,
+    windowWidthM,
     isPreview: true
-  };
+  });
 }
 
 export function buildRenderFixtures(fixtures, previewFixture) {

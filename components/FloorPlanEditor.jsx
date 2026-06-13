@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   BASE_UNIT_OPTIONS,
-  FLOOR_MATERIALS,
   GRID,
   VIEW_H,
   VIEW_W,
@@ -26,7 +25,6 @@ import {
   findWallAtPointInSet,
   isWallOpeningFixture,
   normalizeAngleDeg,
-  projectPointOnWall,
   snapToHalfGrid
 } from './floorplan/editor/utils';
 import {
@@ -47,18 +45,40 @@ import {
 } from './floorplan/editor/hitTest';
 import { buildDefaultCamera, buildFittedCamera } from './floorplan/editor/camera';
 import { exportSvgAsPng } from './floorplan/editor/export';
+import {
+  buildPlacedDoorFixture,
+  buildPlacedFurnitureFixture,
+  buildPlacedWindowFixture,
+  rebindOpeningFixtureToWall
+} from './floorplan/editor/fixtures';
+import {
+  clampFloorIndex,
+  createEmptyPlanFloor,
+  normalizePlanFloors
+} from './floorplan/editor/floors';
 import { computeBoundingBoxAreaM2, sumRoomAreaM2 } from './floorplan/editor/stats';
 import { scalePlanForBaseUnit } from './floorplan/editor/transforms';
 import { loadLatestPlanFromStorage, savePlanToStorage } from './floorplan/storage/planPersistence';
 import EditorPanel from './floorplan/ui/EditorPanel';
 import FloorPlanCanvas from './floorplan/ui/FloorPlanCanvas';
 
+const DEFAULT_BASE_UNIT_M = Number(BASE_UNIT_OPTIONS.find((option) => option.default)?.value) || 1;
+const DEFAULT_CANVAS_ASPECT = VIEW_W / VIEW_H;
+const MIN_CAMERA_SIZE_CELLS = 12;
+const FIT_MARGIN_CELLS = 2;
+const MAX_CAMERA_SIZE_CELLS = 400;
+const DEFAULT_WALL_THICKNESS_BY_TYPE_M = {
+  inner: 0.115,
+  outer: 0.24
+};
+const TOOL_MODES = ['draw', 'edit', 'place'];
+const TOOL_BUTTONS = [
+  { value: 'draw', label: 'Draw', shortcut: '1' },
+  { value: 'edit', label: 'Edit', shortcut: '2' },
+  { value: 'place', label: 'Place', shortcut: '3' }
+];
+
 export default function FloorPlanEditor() {
-  const DEFAULT_BASE_UNIT_M = Number(BASE_UNIT_OPTIONS.find((option) => option.default)?.value) || 1;
-  const DEFAULT_CANVAS_ASPECT = VIEW_W / VIEW_H;
-  const MIN_CAMERA_SIZE_CELLS = 12;
-  const FIT_MARGIN_CELLS = 2;
-  const MAX_CAMERA_SIZE_CELLS = 400;
   const [planName, setPlanName] = useState('My Home');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolMode, setToolMode] = useState('draw');
@@ -74,13 +94,9 @@ export default function FloorPlanEditor() {
   const [furnitureAngleDeg, setFurnitureAngleDeg] = useState(0);
   const [defaultFloor, setDefaultFloor] = useState('tatami');
   const [baseUnitM, setBaseUnitM] = useState(DEFAULT_BASE_UNIT_M);
-  const [wallThicknessByTypeM, setWallThicknessByTypeM] = useState(() => ({
-    inner: 0.115,
-    outer: 0.24
-  }));
-  const [walls, setWalls] = useState([]);
-  const [fixtures, setFixtures] = useState([]);
-  const [roomMeta, setRoomMeta] = useState({});
+  const [wallThicknessByTypeM, setWallThicknessByTypeM] = useState(() => ({ ...DEFAULT_WALL_THICKNESS_BY_TYPE_M }));
+  const [floors, setFloors] = useState(() => [createEmptyPlanFloor(0)]);
+  const [activeFloorIndex, setActiveFloorIndex] = useState(0);
   const [selectedWallId, setSelectedWallId] = useState(null);
   const [selectedFixtureId, setSelectedFixtureId] = useState(null);
   const [selectedRoomKey, setSelectedRoomKey] = useState(null);
@@ -94,27 +110,84 @@ export default function FloorPlanEditor() {
   const [camera, setCamera] = useState({ x: 0, y: 0, w: VIEW_W, h: VIEW_H });
   const [canvasAspect, setCanvasAspect] = useState(DEFAULT_CANVAS_ASPECT);
   const [panState, setPanState] = useState(null);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const svgRef = useRef(null);
   const settingsButtonRef = useRef(null);
   const settingsPopoverRef = useRef(null);
   const suppressCanvasClickRef = useRef(false);
   const shouldRecenterAfterDataLoadRef = useRef(false);
+  const didAutoLoadPlanRef = useRef(false);
   const floorColorByValue = useMemo(() => buildFloorColorByValue(), []);
-  const toolModes = ['draw', 'edit', 'place'];
-  const toolButtons = [
-    { value: 'draw', label: 'Draw', shortcut: '1' },
-    { value: 'edit', label: 'Edit', shortcut: '2' },
-    { value: 'place', label: 'Place', shortcut: '3' }
-  ];
+  const activeFloor = floors[activeFloorIndex] || floors[0] || { walls: [], fixtures: [], roomMeta: {} };
+  const walls = activeFloor?.walls || [];
+  const fixtures = activeFloor?.fixtures || [];
+  const roomMeta = activeFloor?.roomMeta || {};
 
   const selectedWall = useMemo(() => walls.find((w) => w.id === selectedWallId) || null, [walls, selectedWallId]);
   const selectedFixture = useMemo(() => fixtures.find((f) => f.id === selectedFixtureId) || null, [fixtures, selectedFixtureId]);
   const effectiveWalls = useMemo(() => buildEffectiveWalls(walls, fixtures, baseUnitM), [walls, fixtures, baseUnitM]);
+  const previousFloorWallLayers = useMemo(() => floors
+    .slice(0, activeFloorIndex)
+    .map((floor, index) => ({
+      floorId: floor.id,
+      opacity: 0.5 ** (activeFloorIndex - index),
+      walls: buildEffectiveWalls(floor.walls, floor.fixtures, baseUnitM)
+    }))
+    .filter((layer) => layer.walls.length > 0), [floors, activeFloorIndex, baseUnitM]);
+  const visibleCameraWalls = useMemo(
+    () => previousFloorWallLayers.flatMap((layer) => layer.walls).concat(effectiveWalls),
+    [previousFloorWallLayers, effectiveWalls]
+  );
+
+  const updateActiveFloor = useCallback((updater) => {
+    setFloors((current) => current.map((floor, index) => (
+      index === activeFloorIndex ? updater(floor) : floor
+    )));
+  }, [activeFloorIndex]);
+
+  const setWalls = useCallback((nextWalls) => {
+    updateActiveFloor((floor) => ({
+      ...floor,
+      walls: typeof nextWalls === 'function' ? nextWalls(floor.walls) : nextWalls
+    }));
+  }, [updateActiveFloor]);
+
+  const setFixtures = useCallback((nextFixtures) => {
+    updateActiveFloor((floor) => ({
+      ...floor,
+      fixtures: typeof nextFixtures === 'function' ? nextFixtures(floor.fixtures) : nextFixtures
+    }));
+  }, [updateActiveFloor]);
+
+  const setRoomMeta = useCallback((nextRoomMeta) => {
+    updateActiveFloor((floor) => ({
+      ...floor,
+      roomMeta: typeof nextRoomMeta === 'function' ? nextRoomMeta(floor.roomMeta) : nextRoomMeta
+    }));
+  }, [updateActiveFloor]);
 
   const clearSelections = useCallback(() => {
     setSelectedWallId(null);
     setSelectedFixtureId(null);
     setSelectedRoomKey(null);
+  }, []);
+
+  const selectWall = useCallback((wallId) => {
+    setSelectedWallId(wallId);
+    setSelectedFixtureId(null);
+    setSelectedRoomKey(null);
+  }, []);
+
+  const selectFixture = useCallback((fixtureId) => {
+    setSelectedFixtureId(fixtureId);
+    setSelectedWallId(null);
+    setSelectedRoomKey(null);
+  }, []);
+
+  const selectRoom = useCallback((roomKey) => {
+    setSelectedRoomKey(roomKey);
+    setSelectedWallId(null);
+    setSelectedFixtureId(null);
   }, []);
 
   const clearInteractionState = useCallback(() => {
@@ -126,21 +199,92 @@ export default function FloorPlanEditor() {
     setPanState(null);
   }, []);
 
+  const clearFloorUiState = useCallback(() => {
+    clearSelections();
+    clearInteractionState();
+    setHoverWallId(null);
+    setHoverRoomKey(null);
+  }, [clearInteractionState, clearSelections]);
+
+  const applyWallRebinding = useCallback((nextWalls, nextFixtures) => {
+    let changed = false;
+    const rebound = nextFixtures.map((fixture) => {
+      if (!isWallOpeningFixture(fixture)) return fixture;
+      const wall = findWallAtPointInSet(fixture.position, nextWalls);
+      if (!wall) return fixture;
+      const nextFixture = rebindOpeningFixtureToWall(fixture, wall);
+      if (
+        fixture.wallId !== nextFixture.wallId ||
+        Math.abs((fixture.position?.x || 0) - nextFixture.position.x) > EPS ||
+        Math.abs((fixture.position?.y || 0) - nextFixture.position.y) > EPS ||
+        Math.abs((Number(fixture.angle) || 0) - nextFixture.angle) > EPS ||
+        (fixture.kind === 'door' && Number(fixture.swingSide) !== Number(nextFixture.swingSide))
+      ) {
+        changed = true;
+        return nextFixture;
+      }
+      return fixture;
+    });
+    return changed ? rebound : nextFixtures;
+  }, []);
+
+  const findWallAtPoint = useCallback((point, maxDistance = 10) => (
+    findWallAtPointInWalls(walls, point, maxDistance)
+  ), [walls]);
+
+  const rebindFixturesToWalls = useCallback((nextWalls) => {
+    setFixtures((current) => applyWallRebinding(nextWalls, current));
+  }, [applyWallRebinding, setFixtures]);
+
+  const findVertexAtPoint = useCallback((point) => (
+    findVertexAtPointInWalls(walls, point)
+  ), [walls]);
+
+  const findFixtureAtPoint = useCallback((point) => (
+    findFixtureAtPointInFixtures(fixtures, point, baseUnitM, GRID)
+  ), [fixtures, baseUnitM]);
+
   const recenterAndFitCamera = useCallback(() => {
     setCamera(buildFittedCamera({
-      walls,
+      walls: visibleCameraWalls,
       fixtures,
       canvasAspect,
       fitMarginCells: FIT_MARGIN_CELLS,
       minCameraSizeCells: MIN_CAMERA_SIZE_CELLS,
       maxCameraSizeCells: MAX_CAMERA_SIZE_CELLS
     }));
-  }, [walls, fixtures, canvasAspect]);
+  }, [visibleCameraWalls, fixtures, canvasAspect]);
+
+  const activateFloor = useCallback((nextIndex) => {
+    setActiveFloorIndex((current) => {
+      const normalizedIndex = clampFloorIndex(nextIndex, floors.length);
+      return normalizedIndex === current ? current : normalizedIndex;
+    });
+    shouldRecenterAfterDataLoadRef.current = true;
+    clearFloorUiState();
+  }, [clearFloorUiState, floors.length]);
+
+  const goToLowerFloor = useCallback(() => {
+    if (activeFloorIndex <= 0) return;
+    activateFloor(activeFloorIndex - 1);
+  }, [activeFloorIndex, activateFloor]);
+
+  const goToUpperFloor = useCallback(() => {
+    if (activeFloorIndex < floors.length - 1) {
+      activateFloor(activeFloorIndex + 1);
+      return;
+    }
+
+    setFloors((current) => current.concat(createEmptyPlanFloor(current.length)));
+    setActiveFloorIndex((current) => current + 1);
+    shouldRecenterAfterDataLoadRef.current = true;
+    clearFloorUiState();
+  }, [activeFloorIndex, clearFloorUiState, floors.length, setFloors]);
 
   useEffect(() => {
-    if (walls.length || fixtures.length) return;
+    if (walls.length || fixtures.length || previousFloorWallLayers.length) return;
     setCamera(buildDefaultCamera(canvasAspect));
-  }, [canvasAspect, walls.length, fixtures.length]);
+  }, [canvasAspect, walls.length, fixtures.length, previousFloorWallLayers.length]);
 
   const rooms = useMemo(
     () => buildRooms(walls, wallThicknessByTypeM, baseUnitM, roomMeta, defaultFloor),
@@ -171,7 +315,6 @@ export default function FloorPlanEditor() {
   const placePreviewFixture = useMemo(
     () => buildPlacePreviewFixture({
       toolMode,
-      hoverPoint,
       hoverRawPoint,
       placeKind,
       activeFurniturePresets,
@@ -186,7 +329,6 @@ export default function FloorPlanEditor() {
     }),
     [
       toolMode,
-      hoverPoint,
       hoverRawPoint,
       placeKind,
       activeFurniturePresets,
@@ -197,7 +339,7 @@ export default function FloorPlanEditor() {
       doorHinge,
       doorWidthM,
       windowWidthM,
-      walls
+      findWallAtPoint
     ]
   );
   const renderFixtures = useMemo(() => buildRenderFixtures(fixtures, placePreviewFixture), [fixtures, placePreviewFixture]);
@@ -221,81 +363,35 @@ export default function FloorPlanEditor() {
     const parsedNext = Number(nextBaseUnitM);
     if (!Number.isFinite(parsedNext) || parsedNext <= 0) return;
     if (Math.abs(parsedNext - baseUnitM) < EPS) return;
-    const { scaledWalls, scaledFixtures } = scalePlanForBaseUnit({
-      walls,
-      fixtures,
-      currentBaseUnitM: baseUnitM,
-      nextBaseUnitM: parsedNext
-    });
 
     setBaseUnitM(parsedNext);
     shouldRecenterAfterDataLoadRef.current = true;
-    setWalls(scaledWalls);
-    setFixtures(scaledFixtures);
-    rebindFixturesToWalls(scaledWalls);
-  }
-
-  function findWallAtPoint(point, maxDistance = 10) {
-    return findWallAtPointInWalls(walls, point, maxDistance);
-  }
-
-  function rebindFixturesToWalls(nextWalls) {
-    setFixtures((current) => {
-      let changed = false;
-      const rebound = current.map((fixture) => {
-        if (!isWallOpeningFixture(fixture)) return fixture;
-        const wall = findWallAtPointInSet(fixture.position, nextWalls);
-        if (!wall) return fixture;
-        const projected = projectPointOnWall(fixture.position, wall);
-        const position = { x: projected.x, y: projected.y };
-        const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
-        let swingSide = fixture.swingSide;
-        if (fixture.kind === 'door') {
-          const prevAngle = Number(fixture.angle) || angle;
-          const prevNx = -Math.sin(prevAngle);
-          const prevNy = Math.cos(prevAngle);
-          const nextNx = -Math.sin(angle);
-          const nextNy = Math.cos(angle);
-          const prevOpenX = prevNx * (Number(fixture.swingSide) >= 0 ? 1 : -1);
-          const prevOpenY = prevNy * (Number(fixture.swingSide) >= 0 ? 1 : -1);
-          swingSide = ((prevOpenX * nextNx) + (prevOpenY * nextNy)) >= 0 ? 1 : -1;
-        }
-        if (
-          fixture.wallId !== wall.id ||
-          Math.abs((fixture.position?.x || 0) - position.x) > EPS ||
-          Math.abs((fixture.position?.y || 0) - position.y) > EPS ||
-          Math.abs((Number(fixture.angle) || 0) - angle) > EPS ||
-          (fixture.kind === 'door' && Number(fixture.swingSide) !== Number(swingSide))
-        ) {
-          changed = true;
-          return fixture.kind === 'door'
-            ? { ...fixture, wallId: wall.id, position, angle, swingSide }
-            : { ...fixture, wallId: wall.id, position, angle };
-        }
-        return fixture;
+    setFloors((current) => current.map((floor) => {
+      const { scaledWalls, scaledFixtures } = scalePlanForBaseUnit({
+        walls: floor.walls,
+        fixtures: floor.fixtures,
+        currentBaseUnitM: baseUnitM,
+        nextBaseUnitM: parsedNext
       });
-      return changed ? rebound : current;
-    });
+
+      return {
+        ...floor,
+        walls: scaledWalls,
+        fixtures: applyWallRebinding(scaledWalls, scaledFixtures)
+      };
+    }));
   }
 
   useEffect(() => {
     if (!walls.length || !fixtures.length) return;
     rebindFixturesToWalls(walls);
-  }, [walls]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [walls, fixtures.length, rebindFixturesToWalls]);
 
   useEffect(() => {
     if (!shouldRecenterAfterDataLoadRef.current) return;
     shouldRecenterAfterDataLoadRef.current = false;
     recenterAndFitCamera();
-  }, [walls, fixtures, recenterAndFitCamera]);
-
-  function findVertexAtPoint(point) {
-    return findVertexAtPointInWalls(walls, point);
-  }
-
-  function findFixtureAtPoint(point) {
-    return findFixtureAtPointInFixtures(fixtures, point, baseUnitM, GRID);
-  }
+  }, [walls, fixtures, previousFloorWallLayers, recenterAndFitCamera]);
 
   const onCanvasWheel = useCallback((event) => {
     event.preventDefault();
@@ -337,7 +433,7 @@ export default function FloorPlanEditor() {
         h: nextH
       };
     });
-  }, [toolMode, placeKind, selectedFixture, canvasAspect, MIN_CAMERA_SIZE_CELLS, MAX_CAMERA_SIZE_CELLS]);
+  }, [toolMode, placeKind, selectedFixture, canvasAspect]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -446,15 +542,14 @@ export default function FloorPlanEditor() {
         const snapped = snapToGrid(movedPoint.x, movedPoint.y);
         const wall = findWallAtPoint(snapped, 18);
         if (!wall) return;
-        const projected = projectPointOnWall(snapped, wall);
-        const position = snapToGrid(projected.x, projected.y);
-        const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
-        setFixtures((current) => current.map((f) => (f.id === dragState.original.id ? {
-          ...f,
-          wallId: wall.id,
-          position,
-          angle
-        } : f)));
+        setFixtures((current) => current.map((f) => {
+          if (f.id !== dragState.original.id) return f;
+          const rebound = rebindOpeningFixtureToWall(f, wall);
+          return {
+            ...rebound,
+            position: snapToGrid(rebound.position.x, rebound.position.y)
+          };
+        }));
         return;
       }
 
@@ -489,9 +584,7 @@ export default function FloorPlanEditor() {
     const fixtureHit = findFixtureAtPoint(point);
     if (fixtureHit) {
       const fixtureAnchor = fixtureHit.kind === 'furniture' ? snapToHalfGrid(point.x, point.y) : snapToGrid(point.x, point.y);
-      setSelectedFixtureId(fixtureHit.id);
-      setSelectedWallId(null);
-      setSelectedRoomKey(null);
+      selectFixture(fixtureHit.id);
       setDragState({
         kind: 'fixture',
         anchor: fixtureAnchor,
@@ -503,9 +596,7 @@ export default function FloorPlanEditor() {
 
     const vertexHit = findVertexAtPoint(point);
     if (vertexHit) {
-      setSelectedFixtureId(null);
-      setSelectedWallId(null);
-      setSelectedRoomKey(null);
+      clearSelections();
       setDragState({
         kind: 'vertex',
         anchor: snapToGrid(point.x, point.y),
@@ -522,9 +613,7 @@ export default function FloorPlanEditor() {
       return;
     }
 
-    setSelectedWallId(hit.id);
-    setSelectedFixtureId(null);
-    setSelectedRoomKey(null);
+    selectWall(hit.id);
     setDragState({
       kind: 'wall',
       anchor: snapToGrid(point.x, point.y),
@@ -554,31 +643,23 @@ export default function FloorPlanEditor() {
       const vertexHit = findVertexAtPoint(raw);
       if (vertexHit) {
         const attachedWall = walls.find((w) => dist(w.start, vertexHit) < EPS || dist(w.end, vertexHit) < EPS);
-        setSelectedWallId(attachedWall?.id || null);
-        setSelectedFixtureId(null);
-        setSelectedRoomKey(null);
+        selectWall(attachedWall?.id || null);
         return;
       }
 
       const fixtureHit = findFixtureAtPoint(raw);
       if (fixtureHit) {
-        setSelectedFixtureId(fixtureHit.id);
-        setSelectedWallId(null);
-        setSelectedRoomKey(null);
+        selectFixture(fixtureHit.id);
         return;
       }
 
       const wallHit = findWallAtPoint(raw);
       if (wallHit) {
-        setSelectedWallId(wallHit.id);
-        setSelectedFixtureId(null);
-        setSelectedRoomKey(null);
+        selectWall(wallHit.id);
         return;
       }
 
-      setSelectedWallId(null);
-      setSelectedFixtureId(null);
-      setSelectedRoomKey(null);
+      clearSelections();
       return;
     }
 
@@ -586,53 +667,32 @@ export default function FloorPlanEditor() {
       if (placeKind === 'furniture') {
         const preset = activeFurniturePresets.find((item) => item.id === furniturePresetId);
         if (!preset) return;
-        const halfSnapped = snapToHalfGrid(raw.x, raw.y);
-        setFixtures((current) => current.concat({
-          id: crypto.randomUUID(),
-          kind: 'furniture',
+        setFixtures((current) => current.concat(buildPlacedFurnitureFixture({
+          rawPoint: raw,
+          preset,
           furnitureType,
-          presetId: preset.id,
-          widthM: preset.widthM,
-          depthM: preset.depthM,
-          angleDeg: furnitureAngleDeg,
-          position: halfSnapped
-        }));
+          furnitureAngleDeg
+        })));
         return;
       }
 
       const wall = findWallAtPoint(raw, 14);
       if (!wall) return;
-      const projected = projectPointOnWall(raw, wall);
-      const position = { x: projected.x, y: projected.y };
-      const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
       if (placeKind === 'door') {
-        const wallDx = wall.end.x - wall.start.x;
-        const wallDy = wall.end.y - wall.start.y;
-        const wallLen = Math.hypot(wallDx, wallDy);
-        const nx = wallLen > EPS ? (-wallDy / wallLen) : 0;
-        const ny = wallLen > EPS ? (wallDx / wallLen) : 0;
-        const sideValue = ((raw.x - projected.x) * nx + (raw.y - projected.y) * ny) >= 0 ? 1 : -1;
-        setFixtures((current) => current.concat({
-          id: crypto.randomUUID(),
-          kind: 'door',
+        setFixtures((current) => current.concat(buildPlacedDoorFixture({
+          rawPoint: raw,
+          wall,
           doorType,
-          hinge: doorHinge,
-          swingSide: sideValue,
-          widthM: Number(doorWidthM),
-          wallId: wall.id,
-          position,
-          angle
-        }));
+          doorHinge,
+          doorWidthM
+        })));
       }
       if (placeKind === 'window') {
-        setFixtures((current) => current.concat({
-          id: crypto.randomUUID(),
-          kind: 'window',
-          widthM: Number(windowWidthM),
-          wallId: wall.id,
-          position,
-          angle
-        }));
+        setFixtures((current) => current.concat(buildPlacedWindowFixture({
+          rawPoint: raw,
+          wall,
+          windowWidthM
+        })));
       }
       return;
     }
@@ -697,8 +757,7 @@ export default function FloorPlanEditor() {
       rebindFixturesToWalls(normalized);
       return normalized;
     });
-    setSelectedWallId(null);
-    setSelectedRoomKey(null);
+    clearSelections();
   }
 
   function onKeyDown(event) {
@@ -714,7 +773,7 @@ export default function FloorPlanEditor() {
     }
     const numeric = Number(event.key);
     if (Number.isInteger(numeric) && numeric >= 1) {
-      const nextMode = toolModes[numeric - 1];
+      const nextMode = TOOL_MODES[numeric - 1];
       if (nextMode) setToolMode(nextMode);
     }
   }
@@ -728,7 +787,7 @@ export default function FloorPlanEditor() {
       return;
     }
     onKeyDown(event);
-  }, [selectedWall, selectedFixture, toolModes]);
+  }, [selectedFixture, selectedRoom, selectedWall]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -763,13 +822,13 @@ export default function FloorPlanEditor() {
       rebindFixturesToWalls(normalized);
       return normalized;
     });
-    setSelectedWallId(null);
+    clearSelections();
   }
 
   function deleteSelectedFixture() {
     if (!selectedFixture) return;
     setFixtures((current) => current.filter((f) => f.id !== selectedFixture.id));
-    setSelectedFixtureId(null);
+    clearSelections();
   }
 
   function updateRoomMeta(roomKey, patch) {
@@ -792,18 +851,14 @@ export default function FloorPlanEditor() {
         hidden: true
       }
     }));
-    setSelectedRoomKey(null);
+    clearSelections();
   }
 
   function clearPlan() {
-    setWalls([]);
-    setFixtures([]);
-    setRoomMeta({});
+    setFloors([createEmptyPlanFloor(0)]);
+    setActiveFloorIndex(0);
     shouldRecenterAfterDataLoadRef.current = true;
-    clearSelections();
-    setHoverWallId(null);
-    setHoverRoomKey(null);
-    clearInteractionState();
+    clearFloorUiState();
     setBaseUnitM(DEFAULT_BASE_UNIT_M);
   }
 
@@ -811,6 +866,7 @@ export default function FloorPlanEditor() {
     try {
       savePlanToStorage({
         name: planName || 'Untitled Plan',
+        floors,
         walls,
         fixtures,
         roomMeta,
@@ -823,17 +879,24 @@ export default function FloorPlanEditor() {
     }
   }
 
-  function loadLatestPlan() {
+  const loadLatestPlan = useCallback(() => {
     const latest = loadLatestPlanFromStorage();
     if (!latest) return;
 
+    const normalizedFloors = normalizePlanFloors(latest).map((floor) => {
+      const loadedWalls = normalizeAndSplitWalls(floor.walls || []);
+      const loadedFixtures = applyWallRebinding(loadedWalls, Array.isArray(floor.fixtures) ? floor.fixtures : []);
+      return {
+        ...floor,
+        walls: loadedWalls,
+        fixtures: loadedFixtures
+      };
+    });
+
     setPlanName(latest.name || 'Loaded Plan');
     shouldRecenterAfterDataLoadRef.current = true;
-    const loadedWalls = normalizeAndSplitWalls(latest.walls || []);
-    setWalls(loadedWalls);
-    setFixtures(Array.isArray(latest.fixtures) ? latest.fixtures : []);
-    rebindFixturesToWalls(loadedWalls);
-    setRoomMeta(latest.roomMeta || {});
+    setFloors(normalizedFloors);
+    setActiveFloorIndex(0);
     setDefaultFloor(latest.defaultFloor || 'tatami');
     setBaseUnitM(Number(latest.baseUnitM) || DEFAULT_BASE_UNIT_M);
     const legacyInnerPx = Number(latest.wallThicknessByType?.inner);
@@ -842,9 +905,18 @@ export default function FloorPlanEditor() {
       inner: Number(latest.wallThicknessByTypeM?.inner) || (Number.isFinite(legacyInnerPx) && legacyInnerPx > 0 ? (legacyInnerPx / GRID) * (Number(latest.baseUnitM) || DEFAULT_BASE_UNIT_M) : 0.115),
       outer: Number(latest.wallThicknessByTypeM?.outer) || (Number.isFinite(legacyOuterPx) && legacyOuterPx > 0 ? (legacyOuterPx / GRID) * (Number(latest.baseUnitM) || DEFAULT_BASE_UNIT_M) : 0.24)
     });
-    clearSelections();
-    setStartPoint(null);
-  }
+    clearFloorUiState();
+  }, [applyWallRebinding, clearFloorUiState]);
+
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (didAutoLoadPlanRef.current) return;
+    didAutoLoadPlanRef.current = true;
+    loadLatestPlan();
+  }, [loadLatestPlan]);
 
   function exportPlanImage() {
     exportSvgAsPng(svgRef.current, planName || 'floor-plan');
@@ -859,7 +931,7 @@ export default function FloorPlanEditor() {
         setSettingsOpen={setSettingsOpen}
         settingsButtonRef={settingsButtonRef}
         settingsPopoverRef={settingsPopoverRef}
-        toolButtons={toolButtons}
+        toolButtons={TOOL_BUTTONS}
         toolMode={toolMode}
         setToolMode={setToolMode}
         newWallType={newWallType}
@@ -916,12 +988,18 @@ export default function FloorPlanEditor() {
         onCanvasContextMenu={onCanvasContextMenu}
         rooms={rooms}
         floorColorByValue={floorColorByValue}
+        hasHydrated={hasHydrated}
+        activeFloorIndex={activeFloorIndex}
+        floorsCount={floors.length}
+        goToLowerFloor={goToLowerFloor}
+        goToUpperFloor={goToUpperFloor}
+        lowerFloorsCount={previousFloorWallLayers.length}
         selectedRoomKey={selectedRoomKey}
         hoverRoomKey={hoverRoomKey}
         toolMode={toolMode}
         setHoverRoomKey={setHoverRoomKey}
-        setSelectedRoomKey={setSelectedRoomKey}
-        setSelectedWallId={setSelectedWallId}
+        selectRoom={selectRoom}
+        previousFloorWallLayers={previousFloorWallLayers}
         effectiveWalls={effectiveWalls}
         wallStyle={wallStyle}
         selectedWallId={selectedWallId}

@@ -18,12 +18,18 @@ export default function FloorPlanCanvas({
   onCanvasContextMenu,
   rooms,
   floorColorByValue,
+  hasHydrated,
+  activeFloorIndex,
+  floorsCount,
+  goToLowerFloor,
+  goToUpperFloor,
+  lowerFloorsCount,
   selectedRoomKey,
   hoverRoomKey,
   toolMode,
   setHoverRoomKey,
-  setSelectedRoomKey,
-  setSelectedWallId,
+  selectRoom,
+  previousFloorWallLayers,
   effectiveWalls,
   wallStyle,
   selectedWallId,
@@ -89,6 +95,32 @@ export default function FloorPlanCanvas({
           ⤢
         </button>
       </div>
+      <div className="canvas-top-right-actions">
+        <div className="floor-overlay" title={!hasHydrated ? 'Ground floor' : lowerFloorsCount ? `${lowerFloorsCount} lower floor references visible` : 'Ground floor'}>
+          <button
+            type="button"
+            className="canvas-icon-btn"
+            onClick={goToUpperFloor}
+            aria-label={!hasHydrated ? 'Add upper floor' : activeFloorIndex < floorsCount - 1 ? 'Go up one floor' : 'Add upper floor'}
+            title={!hasHydrated ? 'Add upper floor' : activeFloorIndex < floorsCount - 1 ? 'Go up one floor' : 'Add upper floor'}
+          >
+            ↑
+          </button>
+          <div className="floor-indicator">
+            {!hasHydrated ? '1/1' : `${activeFloorIndex + 1}/${floorsCount}`}
+          </div>
+          <button
+            type="button"
+            className="canvas-icon-btn"
+            onClick={goToLowerFloor}
+            aria-label="Go down one floor"
+            title="Go down one floor"
+            disabled={!hasHydrated || activeFloorIndex === 0}
+          >
+            ↓
+          </button>
+        </div>
+      </div>
       <svg
         ref={svgRef}
         viewBox={`${camera.x} ${camera.y} ${camera.w} ${camera.h}`}
@@ -141,8 +173,7 @@ export default function FloorPlanCanvas({
               onClick={(e) => {
                 if (toolMode !== 'edit') return;
                 e.stopPropagation();
-                setSelectedRoomKey(room.key);
-                setSelectedWallId(null);
+                selectRoom(room.key);
               }}
             >
               {room.label}
@@ -152,6 +183,24 @@ export default function FloorPlanCanvas({
             </text>
           </g>
         ))}
+
+        {previousFloorWallLayers.flatMap((layer) => layer.walls.map((wall) => {
+          const style = wallStyle(wall);
+          return (
+            <line
+              key={`prev-${layer.floorId}-${wall.id}`}
+              x1={wall.start.x}
+              y1={wall.start.y}
+              x2={wall.end.x}
+              y2={wall.end.y}
+              stroke={style.color}
+              strokeWidth={style.width}
+              strokeLinecap="round"
+              strokeDasharray="10 8"
+              opacity={layer.opacity}
+            />
+          );
+        }))}
 
         {effectiveWalls.map((wall) => {
           const style = wallStyle(wall);
