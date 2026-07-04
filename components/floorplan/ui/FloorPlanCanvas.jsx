@@ -7,7 +7,8 @@ export default function FloorPlanCanvas({
   camera,
   recenterAndFitCamera,
   savePlan,
-  loadLatestPlan,
+  saveAsNewPlan,
+  openLoadDialog,
   clearPlan,
   exportPlanImage,
   onMouseMove,
@@ -59,9 +60,18 @@ export default function FloorPlanCanvas({
         <button
           type="button"
           className="canvas-icon-btn"
-          onClick={loadLatestPlan}
-          aria-label="Load latest plan"
-          title="Load latest plan"
+          onClick={saveAsNewPlan}
+          aria-label="Save as new plan"
+          title="Save as a new plan (keeps the current one untouched)"
+        >
+          🆕
+        </button>
+        <button
+          type="button"
+          className="canvas-icon-btn"
+          onClick={openLoadDialog}
+          aria-label="Open saved plans"
+          title="Open a saved plan"
         >
           📂
         </button>

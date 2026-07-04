@@ -21,11 +21,6 @@ export const WINDOW_PRESETS_M = [
 ];
 
 export const FURNITURE_PRESETS = {
-  lamp: [
-    { id: 'lamp-tolomeo-mini-35', label: 'Artemide Tolomeo Mini 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
-    { id: 'lamp-tolomeo-tera-45', label: 'Artemide Tolomeo Terra 450 x 450 mm', widthM: 0.45, depthM: 0.45 },
-    { id: 'lamp-tolomeo-mega-55', label: 'Artemide Tolomeo Mega 550 x 550 mm', widthM: 0.55, depthM: 0.55 }
-  ],
   living: [
     { id: 'sofa-180x90', label: 'Sofa 1800 x 900 mm', widthM: 1.8, depthM: 0.9 },
     { id: 'sofa-220x95', label: 'Sofa 2200 x 950 mm', widthM: 2.2, depthM: 0.95 },
@@ -34,12 +29,18 @@ export const FURNITURE_PRESETS = {
     { id: 'coffee-table-120x60', label: 'Coffee Table 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
     { id: 'coffee-table-90x90', label: 'Coffee Table 900 x 900 mm (Usual)', widthM: 0.9, depthM: 0.9 },
     { id: 'storage-tv-console-180x45', label: 'TV Console 1800 x 450 mm (DIN)', widthM: 1.8, depthM: 0.45 },
-    { id: 'living-usm-sofa-side-table-52x37', label: 'USM Sofa Side Table 523 x 373 mm', widthM: 0.523, depthM: 0.373 }
+    { id: 'living-usm-sofa-side-table-52x37', label: 'USM Sofa Side Table 523 x 373 mm', widthM: 0.523, depthM: 0.373 },
+    { id: 'storage-bookshelf-90x30', label: 'Bookshelf 900 x 300 mm', widthM: 0.9, depthM: 0.3 },
+    { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
+    { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 },
+    { id: 'rug-200x300', label: 'Area Rug 2000 x 3000 mm', widthM: 2.0, depthM: 3.0 }
   ],
   lighting: [
     { id: 'lamp-tolomeo-mini-35', label: 'Artemide Tolomeo Mini 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
     { id: 'lamp-tolomeo-tera-45', label: 'Artemide Tolomeo Terra 450 x 450 mm', widthM: 0.45, depthM: 0.45 },
-    { id: 'lamp-tolomeo-mega-55', label: 'Artemide Tolomeo Mega 550 x 550 mm', widthM: 0.55, depthM: 0.55 }
+    { id: 'lamp-tolomeo-mega-55', label: 'Artemide Tolomeo Mega 550 x 550 mm', widthM: 0.55, depthM: 0.55 },
+    { id: 'ceiling-light-30', label: 'Ceiling Light 300 x 300 mm', widthM: 0.3, depthM: 0.3 },
+    { id: 'ceiling-light-pendant-25', label: 'Pendant Light 250 x 250 mm', widthM: 0.25, depthM: 0.25 }
   ],
   dining: [
     { id: 'table-120x80', label: 'Dining Table 1200 x 800 mm (DIN)', widthM: 1.2, depthM: 0.8 },
@@ -58,7 +59,12 @@ export const FURNITURE_PRESETS = {
     { id: 'storage-usm-haller-227x52', label: 'USM Haller 2273 x 523 mm', widthM: 2.273, depthM: 0.523 },
     { id: 'storage-tv-console-180x45', label: 'TV Console 1800 x 450 mm (DIN)', widthM: 1.8, depthM: 0.45 },
     { id: 'storage-tv-console-220x45', label: 'TV Console 2200 x 450 mm (DIN)', widthM: 2.2, depthM: 0.45 },
-    { id: 'storage-fireplace-120x40', label: 'Fireplace 1200 x 400 mm', widthM: 1.2, depthM: 0.4 }
+    { id: 'storage-fireplace-120x40', label: 'Fireplace 1200 x 400 mm', widthM: 1.2, depthM: 0.4 },
+    { id: 'storage-bookshelf-90x30', label: 'Bookshelf 900 x 300 mm', widthM: 0.9, depthM: 0.3 },
+    { id: 'storage-bookshelf-120x30', label: 'Bookshelf 1200 x 300 mm', widthM: 1.2, depthM: 0.3 },
+    { id: 'closet-120x60', label: 'Closet 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
+    { id: 'closet-180x60', label: 'Closet 1800 x 600 mm (DIN)', widthM: 1.8, depthM: 0.6 },
+    { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 }
   ],
   plants: [
     { id: 'plant-pot-s-35', label: 'Plant Pot S 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
@@ -67,10 +73,6 @@ export const FURNITURE_PRESETS = {
     { id: 'plant-tree-l-120', label: 'Indoor Tree L 1200 x 1200 mm', widthM: 1.2, depthM: 1.2 },
     { id: 'plant-raisedbed-120x60', label: 'Raised Bed 1200 x 600 mm', widthM: 1.2, depthM: 0.6 },
     { id: 'plant-raisedbed-180x90', label: 'Raised Bed 1800 x 900 mm', widthM: 1.8, depthM: 0.9 }
-  ],
-  closet: [
-    { id: 'closet-120x60', label: '1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
-    { id: 'closet-180x60', label: '1800 x 600 mm (DIN)', widthM: 1.8, depthM: 0.6 }
   ],
   kitchen: [
     { id: 'appliance-kitchen-base-60', label: 'Base Unit 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
@@ -104,7 +106,11 @@ export const FURNITURE_PRESETS = {
     { id: 'bed-160x200', label: '1600 x 2000 mm (DIN)', widthM: 1.6, depthM: 2.0 },
     { id: 'bed-200x200', label: '2000 x 2000 mm', widthM: 2.0, depthM: 2.0 },
     { id: 'nightstand-45x40', label: 'Nightstand 450 x 400 mm (DIN)', widthM: 0.45, depthM: 0.4 },
-    { id: 'nightstand-60x45', label: 'Nightstand 600 x 450 mm (DIN)', widthM: 0.6, depthM: 0.45 }
+    { id: 'nightstand-60x45', label: 'Nightstand 600 x 450 mm (DIN)', widthM: 0.6, depthM: 0.45 },
+    { id: 'closet-120x60', label: 'Wardrobe 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
+    { id: 'closet-180x60', label: 'Wardrobe 1800 x 600 mm (DIN)', widthM: 1.8, depthM: 0.6 },
+    { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
+    { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 }
   ],
   office: [
     { id: 'office-desk-140x70', label: 'PC Desk 1400 x 700 mm (DIN)', widthM: 1.4, depthM: 0.7 },
@@ -114,6 +120,10 @@ export const FURNITURE_PRESETS = {
     { id: 'office-usm-corpus-52x37', label: 'USM Haller Office Corpus 523 x 373 mm', widthM: 0.523, depthM: 0.373 },
     { id: 'office-usm-corpus-77x37', label: 'USM Haller Office Corpus 773 x 373 mm', widthM: 0.773, depthM: 0.373 },
     { id: 'office-usm-corpus-102x37', label: 'USM Haller Office Corpus 1023 x 373 mm', widthM: 1.023, depthM: 0.373 }
+  ],
+  stairs: [
+    { id: 'stairs-straight-100x280', label: 'Straight Stair 1000 x 2800 mm', widthM: 1.0, depthM: 2.8 },
+    { id: 'stairs-straight-90x240', label: 'Straight Stair 900 x 2400 mm', widthM: 0.9, depthM: 2.4 }
   ]
 };
 export const FURNITURE_TYPES = [
@@ -126,18 +136,6 @@ export const FURNITURE_TYPES = [
   { value: 'laundry', label: 'Laundry' },
   { value: 'bath', label: 'Bath' },
   { value: 'bedroom', label: 'Bedroom' },
-  { value: 'office', label: 'Office' }
+  { value: 'office', label: 'Office' },
+  { value: 'stairs', label: 'Stairs' }
 ];
-
-export const FURNITURE_SUGGESTIONS = {
-  living: ['Floor lamp', 'Bookshelf', 'Side table', 'Rug'],
-  lighting: ['Ceiling light', 'Task lamp', 'Bedside lamp'],
-  dining: ['Sideboard', 'Bar cart', 'Pendant light'],
-  storage: ['Shoe cabinet', 'Entry bench', 'Mirror'],
-  plants: ['Low planter', 'Tall tree', 'Window herb shelf'],
-  kitchen: ['Microwave niche', 'Pantry unit', 'Trash sorting bins'],
-  laundry: ['Drying rack', 'Linen cabinet', 'Utility sink'],
-  bath: ['Shower', 'Towel rack', 'Laundry hamper', 'Vanity storage'],
-  bedroom: ['Dresser', 'Wardrobe', 'Reading chair', 'Full-length mirror'],
-  office: ['Desk lamp', 'Printer stand', 'Cable cabinet', 'Whiteboard']
-};

@@ -44,7 +44,7 @@ import {
   getSnappedPointForEvent
 } from './floorplan/editor/hitTest';
 import { buildDefaultCamera, buildFittedCamera } from './floorplan/editor/camera';
-import { exportSvgAsPng } from './floorplan/editor/export';
+import { capturePlanPreview, exportSvgAsPng } from './floorplan/editor/export';
 import {
   buildPlacedDoorFixture,
   buildPlacedFurnitureFixture,
@@ -58,9 +58,17 @@ import {
 } from './floorplan/editor/floors';
 import { computeBoundingBoxAreaM2, sumRoomAreaM2 } from './floorplan/editor/stats';
 import { scalePlanForBaseUnit } from './floorplan/editor/transforms';
-import { loadLatestPlanFromStorage, savePlanToStorage } from './floorplan/storage/planPersistence';
+import {
+  deletePlanFromStorage,
+  getActivePlanId,
+  getStoredPlan,
+  listStoredPlans,
+  savePlanToStorage,
+  setActivePlanId
+} from './floorplan/storage/planPersistence';
 import EditorPanel from './floorplan/ui/EditorPanel';
 import FloorPlanCanvas from './floorplan/ui/FloorPlanCanvas';
+import PlanLibraryDialog from './floorplan/ui/PlanLibraryDialog';
 
 const DEFAULT_BASE_UNIT_M = Number(BASE_UNIT_OPTIONS.find((option) => option.default)?.value) || 1;
 const DEFAULT_CANVAS_ASPECT = VIEW_W / VIEW_H;
@@ -111,6 +119,9 @@ export default function FloorPlanEditor() {
   const [canvasAspect, setCanvasAspect] = useState(DEFAULT_CANVAS_ASPECT);
   const [panState, setPanState] = useState(null);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [activeProjectId, setActiveProjectId] = useState(null);
+  const [loadDialogOpen, setLoadDialogOpen] = useState(false);
+  const [libraryProjects, setLibraryProjects] = useState([]);
   const svgRef = useRef(null);
   const settingsButtonRef = useRef(null);
   const settingsPopoverRef = useRef(null);
@@ -860,11 +871,27 @@ export default function FloorPlanEditor() {
     shouldRecenterAfterDataLoadRef.current = true;
     clearFloorUiState();
     setBaseUnitM(DEFAULT_BASE_UNIT_M);
+    // Disconnect from whichever project was loaded so that drawing something
+    // new and saving creates a fresh project instead of overwriting it.
+    setActiveProjectId(null);
+    setActivePlanId(null);
+    setPlanName('Untitled Plan');
   }
 
-  function savePlan() {
+  function isPlanEmpty() {
+    return floors.every((floor) => (floor.walls || []).length === 0 && (floor.fixtures || []).length === 0);
+  }
+
+  const persistPlan = useCallback(async (targetId) => {
+    if (isPlanEmpty()) {
+      window.alert('This plan is empty, so there is nothing to save yet. Draw at least one wall first.');
+      return;
+    }
+
+    const preview = await capturePlanPreview(svgRef.current);
+
     try {
-      savePlanToStorage({
+      const saved = savePlanToStorage({
         name: planName || 'Untitled Plan',
         floors,
         walls,
@@ -872,18 +899,29 @@ export default function FloorPlanEditor() {
         roomMeta,
         defaultFloor,
         baseUnitM,
-        wallThicknessByTypeM
-      });
+        wallThicknessByTypeM,
+        preview
+      }, targetId);
+      setActiveProjectId(saved.id);
+      setActivePlanId(saved.id);
     } catch (error) {
       console.warn('Failed to save plan to local storage:', error);
+      window.alert('Could not save the plan (local storage unavailable or full).');
     }
+  }, [baseUnitM, defaultFloor, fixtures, floors, planName, roomMeta, wallThicknessByTypeM, walls]);
+
+  function savePlan() {
+    persistPlan(activeProjectId);
   }
 
-  const loadLatestPlan = useCallback(() => {
-    const latest = loadLatestPlanFromStorage();
-    if (!latest) return;
+  function saveAsNewPlan() {
+    persistPlan(null);
+  }
 
-    const normalizedFloors = normalizePlanFloors(latest).map((floor) => {
+  const loadProjectEntry = useCallback((entry) => {
+    if (!entry) return;
+
+    const normalizedFloors = normalizePlanFloors(entry).map((floor) => {
       const loadedWalls = normalizeAndSplitWalls(floor.walls || []);
       const loadedFixtures = applyWallRebinding(loadedWalls, Array.isArray(floor.fixtures) ? floor.fixtures : []);
       return {
@@ -893,20 +931,51 @@ export default function FloorPlanEditor() {
       };
     });
 
-    setPlanName(latest.name || 'Loaded Plan');
+    setPlanName(entry.name || 'Loaded Plan');
     shouldRecenterAfterDataLoadRef.current = true;
     setFloors(normalizedFloors);
     setActiveFloorIndex(0);
-    setDefaultFloor(latest.defaultFloor || 'tatami');
-    setBaseUnitM(Number(latest.baseUnitM) || DEFAULT_BASE_UNIT_M);
-    const legacyInnerPx = Number(latest.wallThicknessByType?.inner);
-    const legacyOuterPx = Number(latest.wallThicknessByType?.outer);
+    setDefaultFloor(entry.defaultFloor || 'tatami');
+    setBaseUnitM(Number(entry.baseUnitM) || DEFAULT_BASE_UNIT_M);
+    const legacyInnerPx = Number(entry.wallThicknessByType?.inner);
+    const legacyOuterPx = Number(entry.wallThicknessByType?.outer);
     setWallThicknessByTypeM({
-      inner: Number(latest.wallThicknessByTypeM?.inner) || (Number.isFinite(legacyInnerPx) && legacyInnerPx > 0 ? (legacyInnerPx / GRID) * (Number(latest.baseUnitM) || DEFAULT_BASE_UNIT_M) : 0.115),
-      outer: Number(latest.wallThicknessByTypeM?.outer) || (Number.isFinite(legacyOuterPx) && legacyOuterPx > 0 ? (legacyOuterPx / GRID) * (Number(latest.baseUnitM) || DEFAULT_BASE_UNIT_M) : 0.24)
+      inner: Number(entry.wallThicknessByTypeM?.inner) || (Number.isFinite(legacyInnerPx) && legacyInnerPx > 0 ? (legacyInnerPx / GRID) * (Number(entry.baseUnitM) || DEFAULT_BASE_UNIT_M) : 0.115),
+      outer: Number(entry.wallThicknessByTypeM?.outer) || (Number.isFinite(legacyOuterPx) && legacyOuterPx > 0 ? (legacyOuterPx / GRID) * (Number(entry.baseUnitM) || DEFAULT_BASE_UNIT_M) : 0.24)
     });
     clearFloorUiState();
+    setActiveProjectId(entry.id);
+    setActivePlanId(entry.id);
   }, [applyWallRebinding, clearFloorUiState]);
+
+  const loadProjectById = useCallback((id) => {
+    const entry = getStoredPlan(id);
+    if (entry) loadProjectEntry(entry);
+  }, [loadProjectEntry]);
+
+  function openLoadDialog() {
+    setLibraryProjects(listStoredPlans());
+    setLoadDialogOpen(true);
+  }
+
+  function closeLoadDialog() {
+    setLoadDialogOpen(false);
+  }
+
+  function selectProjectFromDialog(id) {
+    loadProjectById(id);
+    setLoadDialogOpen(false);
+  }
+
+  function deleteProjectFromDialog(id, name) {
+    if (!window.confirm(`Delete "${name || 'this plan'}"? This cannot be undone.`)) return;
+    deletePlanFromStorage(id);
+    if (id === activeProjectId) {
+      setActiveProjectId(null);
+      setActivePlanId(null);
+    }
+    setLibraryProjects(listStoredPlans());
+  }
 
   useEffect(() => {
     setHasHydrated(true);
@@ -915,8 +984,10 @@ export default function FloorPlanEditor() {
   useEffect(() => {
     if (didAutoLoadPlanRef.current) return;
     didAutoLoadPlanRef.current = true;
-    loadLatestPlan();
-  }, [loadLatestPlan]);
+    const activeId = getActivePlanId();
+    const entry = (activeId && getStoredPlan(activeId)) || listStoredPlans()[0] || null;
+    if (entry) loadProjectEntry(entry);
+  }, [loadProjectEntry]);
 
   function exportPlanImage() {
     exportSvgAsPng(svgRef.current, planName || 'floor-plan');
@@ -977,7 +1048,8 @@ export default function FloorPlanEditor() {
         camera={camera}
         recenterAndFitCamera={recenterAndFitCamera}
         savePlan={savePlan}
-        loadLatestPlan={loadLatestPlan}
+        saveAsNewPlan={saveAsNewPlan}
+        openLoadDialog={openLoadDialog}
         clearPlan={clearPlan}
         exportPlanImage={exportPlanImage}
         onMouseMove={onMouseMove}
@@ -1013,6 +1085,15 @@ export default function FloorPlanEditor() {
         hoverPoint={hoverPoint}
         drawPreviewMeasurement={drawPreviewMeasurement}
         draggedVertexMeasurements={draggedVertexMeasurements}
+      />
+
+      <PlanLibraryDialog
+        open={loadDialogOpen}
+        projects={libraryProjects}
+        activeProjectId={activeProjectId}
+        onSelect={selectProjectFromDialog}
+        onDelete={deleteProjectFromDialog}
+        onClose={closeLoadDialog}
       />
     </section>
   );
