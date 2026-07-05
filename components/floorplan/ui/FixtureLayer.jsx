@@ -170,7 +170,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
     return (
       <g
         key={fixture.id}
-        opacity={fixture.isPreview ? 0.45 : 1}
+        opacity={fixture.isPreview ? 0.45 : (isTechnical ? 0.5 : 1)}
         transform={`rotate(${Number(fixture.angleDeg) || 0} ${fixture.position.x} ${fixture.position.y})`}
       >
         {!isChaise && !isRug && !isStool && !isFirepit && !isParasol && (

@@ -83,22 +83,6 @@ export default function EditorPanel({
       </div>
 
       <div className="control-group">
-        <span>Render Mode</span>
-        <div className="place-switches">
-          {renderModes.map((mode) => (
-            <button
-              key={mode.value}
-              type="button"
-              className={renderMode === mode.value ? 'place-switch place-switch-active' : 'place-switch'}
-              onClick={() => setRenderMode(mode.value)}
-            >
-              {mode.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="control-group">
         <span>Toolbox</span>
         <div className="mode-toolbox">
           {toolButtons.map((tool) => (
@@ -227,6 +211,21 @@ export default function EditorPanel({
       {settingsOpen && (
         <div className="settings-popover" ref={settingsPopoverRef}>
           <div className="settings-popover-title">Settings</div>
+          <div className="control-group">
+            <span>Render Mode</span>
+            <div className="place-switches">
+              {renderModes.map((mode) => (
+                <button
+                  key={mode.value}
+                  type="button"
+                  className={renderMode === mode.value ? 'place-switch place-switch-active' : 'place-switch'}
+                  onClick={() => setRenderMode(mode.value)}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="control-group">
             <label htmlFor="default-floor">Default Floor</label>
             <select id="default-floor" value={defaultFloor} onChange={(e) => setDefaultFloor(e.target.value)}>

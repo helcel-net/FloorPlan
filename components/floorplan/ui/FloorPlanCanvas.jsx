@@ -267,7 +267,11 @@ export default function FloorPlanCanvas({
           const uy = dy / len;
           const nx = -uy;
           const ny = ux;
-          const offset = 18;
+          // Clear the wall's own rendered thickness before offsetting the
+          // dimension line out, so thicker (e.g. outer/DIN) walls don't push
+          // the extension lines to overlap the wall stroke itself.
+          const wallHalfThickness = wallStyle(wall).width / 2;
+          const offset = wallHalfThickness + 10;
           const tick = 5;
           const p1 = { x: wall.start.x + nx * offset, y: wall.start.y + ny * offset };
           const p2 = { x: wall.end.x + nx * offset, y: wall.end.y + ny * offset };
