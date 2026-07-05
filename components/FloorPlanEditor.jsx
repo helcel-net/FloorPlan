@@ -255,16 +255,18 @@ export default function FloorPlanEditor() {
     findFixtureAtPointInFixtures(fixtures, point, baseUnitM, GRID)
   ), [fixtures, baseUnitM]);
 
+  const buildFittedCameraForPlan = useCallback(() => buildFittedCamera({
+    walls: visibleCameraWalls,
+    fixtures,
+    canvasAspect,
+    fitMarginCells: FIT_MARGIN_CELLS,
+    minCameraSizeCells: MIN_CAMERA_SIZE_CELLS,
+    maxCameraSizeCells: MAX_CAMERA_SIZE_CELLS
+  }), [visibleCameraWalls, fixtures, canvasAspect]);
+
   const recenterAndFitCamera = useCallback(() => {
-    setCamera(buildFittedCamera({
-      walls: visibleCameraWalls,
-      fixtures,
-      canvasAspect,
-      fitMarginCells: FIT_MARGIN_CELLS,
-      minCameraSizeCells: MIN_CAMERA_SIZE_CELLS,
-      maxCameraSizeCells: MAX_CAMERA_SIZE_CELLS
-    }));
-  }, [visibleCameraWalls, fixtures, canvasAspect]);
+    setCamera(buildFittedCameraForPlan());
+  }, [buildFittedCameraForPlan]);
 
   const activateFloor = useCallback((nextIndex) => {
     setActiveFloorIndex((current) => {
@@ -883,6 +885,17 @@ export default function FloorPlanEditor() {
       return;
     }
 
+    // Recenter on the whole plan before capturing the preview thumbnail, so
+    // it always shows a full overview rather than whatever pan/zoom the
+    // user happened to be at. Apply the viewBox to the live SVG directly so
+    // the capture reflects it immediately, without waiting on React's
+    // render cycle.
+    const fittedCamera = buildFittedCameraForPlan();
+    if (svgRef.current) {
+      svgRef.current.setAttribute('viewBox', `${fittedCamera.x} ${fittedCamera.y} ${fittedCamera.w} ${fittedCamera.h}`);
+    }
+    setCamera(fittedCamera);
+
     const preview = await capturePlanPreview(svgRef.current);
 
     try {
@@ -903,7 +916,7 @@ export default function FloorPlanEditor() {
       console.warn('Failed to save plan to local storage:', error);
       window.alert('Could not save the plan (local storage unavailable or full).');
     }
-  }, [baseUnitM, defaultFloor, fixtures, floors, planName, roomMeta, wallThicknessByTypeM, walls]);
+  }, [baseUnitM, buildFittedCameraForPlan, defaultFloor, fixtures, floors, planName, roomMeta, wallThicknessByTypeM, walls]);
 
   function savePlan() {
     persistPlan(activeProjectId);
