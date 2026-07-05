@@ -296,6 +296,22 @@ button:disabled {
   z-index: 2;
 }
 
+.canvas-mode-banner {
+  position: absolute;
+  left: 50%;
+  top: 0.75rem;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: min(80%, 520px);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(20, 18, 14, 0.78);
+  color: #f5f0e6;
+  font-size: 0.78rem;
+  text-align: center;
+  pointer-events: none;
+}
+
 .floor-overlay {
   display: flex;
   flex-direction: column;
@@ -498,6 +514,17 @@ svg {
   fill: #1e3a32;
   paint-order: stroke;
   stroke: #fffef8;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.dimension-label {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #222;
+  paint-order: stroke;
+  stroke: #ffffff;
   stroke-width: 3px;
   stroke-linejoin: round;
   pointer-events: none;

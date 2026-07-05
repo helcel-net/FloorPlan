@@ -33,7 +33,9 @@ export const FURNITURE_PRESETS = {
     { id: 'storage-bookshelf-90x30', label: 'Bookshelf 900 x 300 mm', widthM: 0.9, depthM: 0.3 },
     { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
     { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 },
-    { id: 'rug-200x300', label: 'Area Rug 2000 x 3000 mm', widthM: 2.0, depthM: 3.0 }
+    { id: 'rug-200x300', label: 'Area Rug 2000 x 3000 mm', widthM: 2.0, depthM: 3.0 },
+    { id: 'chair-armchair-85x85', label: 'Armchair 850 x 850 mm', widthM: 0.85, depthM: 0.85 },
+    { id: 'ottoman-60x60', label: 'Ottoman 600 x 600 mm', widthM: 0.6, depthM: 0.6 }
   ],
   lighting: [
     { id: 'lamp-tolomeo-mini-35', label: 'Artemide Tolomeo Mini 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
@@ -47,7 +49,9 @@ export const FURNITURE_PRESETS = {
     { id: 'table-160x90', label: 'Dining Table 1600 x 900 mm (DIN)', widthM: 1.6, depthM: 0.9 },
     { id: 'table-180x90', label: 'Dining Table 1800 x 900 mm (DIN)', widthM: 1.8, depthM: 0.9 },
     { id: 'chair-dining-48x52', label: 'Dining Chair 480 x 520 mm (DIN)', widthM: 0.48, depthM: 0.52 },
-    { id: 'chair-45x45', label: 'Chair 450 x 450 mm (DIN)', widthM: 0.45, depthM: 0.45 }
+    { id: 'chair-45x45', label: 'Chair 450 x 450 mm (DIN)', widthM: 0.45, depthM: 0.45 },
+    { id: 'stool-bar-35', label: 'Bar Stool 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
+    { id: 'storage-sideboard-160x45', label: 'Sideboard 1600 x 450 mm', widthM: 1.6, depthM: 0.45 }
   ],
   storage: [
     { id: 'storage-elfa-45x40', label: 'ELFA 450 x 400 mm', widthM: 0.45, depthM: 0.4 },
@@ -64,7 +68,9 @@ export const FURNITURE_PRESETS = {
     { id: 'storage-bookshelf-120x30', label: 'Bookshelf 1200 x 300 mm', widthM: 1.2, depthM: 0.3 },
     { id: 'closet-120x60', label: 'Closet 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
     { id: 'closet-180x60', label: 'Closet 1800 x 600 mm (DIN)', widthM: 1.8, depthM: 0.6 },
-    { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 }
+    { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
+    { id: 'storage-sideboard-160x45', label: 'Sideboard 1600 x 450 mm', widthM: 1.6, depthM: 0.45 },
+    { id: 'storage-entry-bench-90x40', label: 'Entry Bench 900 x 400 mm', widthM: 0.9, depthM: 0.4 }
   ],
   plants: [
     { id: 'plant-pot-s-35', label: 'Plant Pot S 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
@@ -85,11 +91,13 @@ export const FURNITURE_PRESETS = {
     { id: 'appliance-dishwasher-45x60', label: 'Dishwasher 450 x 600 mm (DIN)', widthM: 0.45, depthM: 0.6 },
     { id: 'appliance-oven-60x60', label: 'Oven 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
     { id: 'appliance-stove-60x60', label: 'Stove 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
-    { id: 'appliance-bins-60x60', label: 'Bins 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 }
+    { id: 'appliance-bins-60x60', label: 'Bins 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
+    { id: 'appliance-kitchen-base-island-160x90', label: 'Kitchen Island 1600 x 900 mm', widthM: 1.6, depthM: 0.9 }
   ],
   laundry: [
     { id: 'appliance-washer-60x60', label: 'Washer 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
-    { id: 'appliance-dryer-60x60', label: 'Dryer 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 }
+    { id: 'appliance-dryer-60x60', label: 'Dryer 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
+    { id: 'appliance-utility-sink-60x55', label: 'Utility Sink 600 x 550 mm', widthM: 0.6, depthM: 0.55 }
   ],
   bath: [
     { id: 'bath-sink-small-40x35', label: 'Small Bath Sink 400 x 350 mm (DIN)', widthM: 0.4, depthM: 0.35 },
@@ -110,7 +118,8 @@ export const FURNITURE_PRESETS = {
     { id: 'closet-120x60', label: 'Wardrobe 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
     { id: 'closet-180x60', label: 'Wardrobe 1800 x 600 mm (DIN)', widthM: 1.8, depthM: 0.6 },
     { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
-    { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 }
+    { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 },
+    { id: 'storage-dresser-100x50', label: 'Dresser 1000 x 500 mm', widthM: 1.0, depthM: 0.5 }
   ],
   office: [
     { id: 'office-desk-140x70', label: 'PC Desk 1400 x 700 mm (DIN)', widthM: 1.4, depthM: 0.7 },
@@ -124,6 +133,16 @@ export const FURNITURE_PRESETS = {
   stairs: [
     { id: 'stairs-straight-100x280', label: 'Straight Stair 1000 x 2800 mm', widthM: 1.0, depthM: 2.8 },
     { id: 'stairs-straight-90x240', label: 'Straight Stair 900 x 2400 mm', widthM: 0.9, depthM: 2.4 }
+  ],
+  garden: [
+    { id: 'table-garden-160x90', label: 'Garden Table 1600 x 900 mm', widthM: 1.6, depthM: 0.9 },
+    { id: 'chair-garden-50x50', label: 'Garden Chair 500 x 500 mm', widthM: 0.5, depthM: 0.5 },
+    { id: 'lounger-70x200', label: 'Sun Lounger 700 x 2000 mm', widthM: 0.7, depthM: 2.0 },
+    { id: 'bench-garden-150x50', label: 'Garden Bench 1500 x 500 mm', widthM: 1.5, depthM: 0.5 },
+    { id: 'appliance-bbq-70x60', label: 'BBQ Grill 700 x 600 mm', widthM: 0.7, depthM: 0.6 },
+    { id: 'parasol-300', label: 'Parasol 3000 x 3000 mm', widthM: 3.0, depthM: 3.0 },
+    { id: 'firepit-80', label: 'Fire Pit 800 x 800 mm', widthM: 0.8, depthM: 0.8 },
+    { id: 'plant-pot-xl-90', label: 'Large Planter 900 x 900 mm', widthM: 0.9, depthM: 0.9 }
   ]
 };
 export const FURNITURE_TYPES = [
@@ -137,5 +156,6 @@ export const FURNITURE_TYPES = [
   { value: 'bath', label: 'Bath' },
   { value: 'bedroom', label: 'Bedroom' },
   { value: 'office', label: 'Office' },
-  { value: 'stairs', label: 'Stairs' }
+  { value: 'stairs', label: 'Stairs' },
+  { value: 'garden', label: 'Garden' }
 ];

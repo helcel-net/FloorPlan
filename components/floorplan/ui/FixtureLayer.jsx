@@ -1,7 +1,9 @@
 import { GRID } from '../config/constants';
 import { isWallOpeningFixture, normalizeFurnitureType } from '../editor/utils';
 
-export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtureId }) {
+export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtureId, renderMode }) {
+  const isTechnical = renderMode === 'technical' || renderMode === 'utilities';
+
   return renderFixtures.map((fixture) => {
     if (isWallOpeningFixture(fixture)) {
       const widthPx = ((Number(fixture.widthM) || 0.8) / baseUnitM) * GRID;
@@ -20,6 +22,9 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
       const y2 = fixture.position.y + uy * half;
       const previewOpacity = fixture.isPreview ? 0.45 : 1;
       const isSelected = !fixture.isPreview && selectedFixtureId === fixture.id;
+      const openingLineStroke = isTechnical ? (isSelected ? '#0f4d6f' : '#1a1a1a') : (isSelected ? '#7f2b21' : '#8a7b62');
+      const doorAccentStroke = isTechnical ? '#1a1a1a' : '#ad3c2f';
+      const windowStroke = isTechnical ? (isSelected ? '#0f4d6f' : '#1a1a1a') : (isSelected ? '#0f4d6f' : '#2a6f93');
 
       const previewHighlight = fixture.isPreview && (
         <polygon
@@ -33,7 +38,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         return (
           <g key={fixture.id}>
             {previewHighlight}
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={isSelected ? '#0f4d6f' : '#2a6f93'} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" opacity={previewOpacity} />
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={windowStroke} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" opacity={previewOpacity} />
           </g>
         );
       }
@@ -62,11 +67,11 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         <g key={fixture.id}>
           {previewHighlight}
           <g opacity={previewOpacity}>
-          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={isSelected ? '#7f2b21' : '#8a7b62'} strokeWidth={isSelected ? 2.5 : 1.5} strokeDasharray="5 4" />
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={openingLineStroke} strokeWidth={isSelected ? 2.5 : 1.5} strokeDasharray="5 4" />
           {doorTypeValue === 'swing' && (
             <>
-              <line x1={hingeX} y1={hingeY} x2={leafEndX} y2={leafEndY} stroke="#ad3c2f" strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" />
-              <path d={`M ${closedEndX} ${closedEndY} A ${leafLength} ${leafLength} 0 0 ${sweepFlag} ${leafEndX} ${leafEndY}`} fill="none" stroke="#ad3c2f" strokeWidth={isSelected ? 2 : 1.5} />
+              <line x1={hingeX} y1={hingeY} x2={leafEndX} y2={leafEndY} stroke={doorAccentStroke} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" />
+              <path d={`M ${closedEndX} ${closedEndY} A ${leafLength} ${leafLength} 0 0 ${sweepFlag} ${leafEndX} ${leafEndY}`} fill="none" stroke={doorAccentStroke} strokeWidth={isSelected ? 2 : 1.5} />
             </>
           )}
 
@@ -76,7 +81,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
               y1={y1 + ny * swingSide * 8}
               x2={x2 + nx * swingSide * 8}
               y2={y2 + ny * swingSide * 8}
-              stroke="#ad3c2f"
+              stroke={doorAccentStroke}
               strokeWidth={isSelected ? 3 : 2}
             />
           )}
@@ -103,8 +108,8 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
 
                 return (
                   <>
-                    <line x1={hingeX} y1={hingeY} x2={firstEnd.x} y2={firstEnd.y} stroke="#ad3c2f" strokeWidth={isSelected ? 3 : 2} />
-                    <line x1={firstEnd.x} y1={firstEnd.y} x2={secondEnd.x} y2={secondEnd.y} stroke="#ad3c2f" strokeWidth={isSelected ? 3 : 2} />
+                    <line x1={hingeX} y1={hingeY} x2={firstEnd.x} y2={firstEnd.y} stroke={doorAccentStroke} strokeWidth={isSelected ? 3 : 2} />
+                    <line x1={firstEnd.x} y1={firstEnd.y} x2={secondEnd.x} y2={secondEnd.y} stroke={doorAccentStroke} strokeWidth={isSelected ? 3 : 2} />
                   </>
                 );
               })()}
@@ -131,6 +136,13 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
     const isPlant = presetIdValue.startsWith('plant-');
     const isMirror = presetIdValue.startsWith('mirror-');
     const isRug = presetIdValue.startsWith('rug-');
+    const isStool = presetIdValue.startsWith('stool-');
+    const isOttoman = presetIdValue.startsWith('ottoman-');
+    const isLounger = presetIdValue.startsWith('lounger-');
+    const isBench = presetIdValue.startsWith('bench-');
+    const isParasol = presetIdValue.startsWith('parasol-');
+    const isFirepit = presetIdValue.startsWith('firepit-');
+    const isBbq = presetIdValue.startsWith('appliance-bbq-');
     const isBath = furnitureTypeValue === 'bath';
     const isKitchen = furnitureTypeValue === 'kitchen';
     const isLaundry = furnitureTypeValue === 'laundry';
@@ -138,24 +150,30 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
     const isChaise = isSofa && presetIdValue.includes('chaise');
     const chaiseOnRight = presetIdValue.includes('-r-');
 
-    const baseFill = isPlant
-      ? 'rgba(74, 122, 81, 0.18)'
-      : isRug
-        ? 'rgba(154, 130, 92, 0.10)'
-        : ((isKitchen || isLaundry || isBath || isStairs || isMirror) ? 'rgba(101, 117, 132, 0.18)' : 'rgba(58, 95, 66, 0.15)');
-    const baseStroke = isPlant
-      ? '#3f6f49'
-      : isRug
-        ? '#9a8258'
-        : ((isKitchen || isLaundry || isBath || isStairs || isMirror) ? '#4f6072' : '#3a5f42');
-    const strokeColor = isSelected ? '#22303b' : baseStroke;
+    const baseFill = isTechnical
+      ? '#ffffff'
+      : isPlant
+        ? 'rgba(74, 122, 81, 0.18)'
+        : isRug
+          ? 'rgba(154, 130, 92, 0.10)'
+          : isFirepit
+            ? 'rgba(60, 50, 45, 0.22)'
+            : ((isKitchen || isLaundry || isBath || isStairs || isMirror || isBbq) ? 'rgba(101, 117, 132, 0.18)' : 'rgba(58, 95, 66, 0.15)');
+    const baseStroke = isTechnical
+      ? '#1a1a1a'
+      : isPlant
+        ? '#3f6f49'
+        : isRug
+          ? '#9a8258'
+          : ((isKitchen || isLaundry || isBath || isStairs || isMirror || isBbq) ? '#4f6072' : '#3a5f42');
+    const strokeColor = isSelected ? (isTechnical ? '#0f4d6f' : '#22303b') : baseStroke;
     return (
       <g
         key={fixture.id}
         opacity={fixture.isPreview ? 0.45 : 1}
         transform={`rotate(${Number(fixture.angleDeg) || 0} ${fixture.position.x} ${fixture.position.y})`}
       >
-        {!isChaise && !isRug && (
+        {!isChaise && !isRug && !isStool && !isFirepit && !isParasol && (
           <rect
             x={left}
             y={top}
@@ -166,6 +184,90 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
             strokeWidth={isSelected ? 3 : 2}
             rx={4}
           />
+        )}
+
+        {(isStool || isFirepit) && (
+          <circle
+            cx={fixture.position.x}
+            cy={fixture.position.y}
+            r={Math.min(widthPx, depthPx) / 2}
+            fill={baseFill}
+            stroke={strokeColor}
+            strokeWidth={isSelected ? 3 : 2}
+          />
+        )}
+
+        {isFirepit && (
+          <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.22} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.6} />
+        )}
+
+        {isParasol && (() => {
+          const r = Math.min(widthPx, depthPx) * 0.46;
+          const ribCount = 8;
+          const ribs = Array.from({ length: ribCount }).map((_, i) => {
+            const angle = (i / ribCount) * Math.PI * 2;
+            return (
+              <line
+                key={`rib-${i}`}
+                x1={fixture.position.x}
+                y1={fixture.position.y}
+                x2={fixture.position.x + Math.cos(angle) * r}
+                y2={fixture.position.y + Math.sin(angle) * r}
+                stroke={strokeColor}
+                strokeWidth={0.8}
+                opacity={0.5}
+              />
+            );
+          });
+          return (
+            <>
+              <circle cx={fixture.position.x} cy={fixture.position.y} r={r} fill={baseFill} stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} />
+              {ribs}
+              <circle cx={fixture.position.x} cy={fixture.position.y} r={2} fill={strokeColor} />
+            </>
+          );
+        })()}
+
+        {isLounger && (
+          <path
+            d={`M ${left + widthPx * 0.1} ${top + depthPx * 0.28} Q ${fixture.position.x} ${top + depthPx * 0.04} ${left + widthPx * 0.9} ${top + depthPx * 0.28}`}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth={1.2}
+          />
+        )}
+        {isLounger && (
+          <line x1={left + widthPx * 0.1} y1={top + depthPx * 0.66} x2={left + widthPx * 0.9} y2={top + depthPx * 0.66} stroke={strokeColor} strokeWidth={1} opacity={0.4} />
+        )}
+
+        {isBench && (() => {
+          const slatCount = 4;
+          const slats = [];
+          for (let i = 1; i < slatCount; i += 1) {
+            const y = top + (depthPx * i) / slatCount;
+            slats.push(<line key={`slat-${i}`} x1={left + widthPx * 0.05} y1={y} x2={left + widthPx * 0.95} y2={y} stroke={strokeColor} strokeWidth={0.9} opacity={0.4} />);
+          }
+          return <>{slats}</>;
+        })()}
+
+        {isBbq && (() => {
+          const grateCount = 4;
+          const grates = [];
+          for (let i = 1; i <= grateCount; i += 1) {
+            const x = left + widthPx * (0.15 + (i * 0.7) / (grateCount + 1));
+            grates.push(<line key={`grate-${i}`} x1={x} y1={top + depthPx * 0.18} x2={x} y2={top + depthPx * 0.62} stroke={strokeColor} strokeWidth={0.8} opacity={0.5} />);
+          }
+          return (
+            <>
+              <rect x={left + widthPx * 0.12} y={top + depthPx * 0.15} width={widthPx * 0.76} height={depthPx * 0.5} fill="none" stroke={strokeColor} strokeWidth={1.2} rx={2} />
+              {grates}
+              <rect x={left + widthPx * 0.3} y={top + depthPx * 0.72} width={widthPx * 0.4} height={depthPx * 0.16} fill="none" stroke={strokeColor} strokeWidth={1} rx={2} opacity={0.7} />
+            </>
+          );
+        })()}
+
+        {isOttoman && (
+          <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.32} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.45} />
         )}
 
         {isRug && (
@@ -196,12 +298,22 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {isSofa && !isChaise && (
-          <>
-            <line x1={left + widthPx * 0.05} y1={top + depthPx * 0.2} x2={left + widthPx * 0.95} y2={top + depthPx * 0.2} stroke={strokeColor} strokeWidth={1} opacity={0.4} />
-            <line x1={fixture.position.x} y1={top + depthPx * 0.2} x2={fixture.position.x} y2={top + depthPx * 0.94} stroke={strokeColor} strokeWidth={0.9} opacity={0.3} />
-          </>
-        )}
+        {isSofa && !isChaise && (() => {
+          const seatCount = Math.max(2, Math.round((Number(fixture.widthM) || 1.8) / 0.75));
+          const seams = [];
+          for (let i = 1; i < seatCount; i += 1) {
+            const x = left + (widthPx * i) / seatCount;
+            seams.push(
+              <line key={`seat-${i}`} x1={x} y1={top + depthPx * 0.2} x2={x} y2={top + depthPx * 0.94} stroke={strokeColor} strokeWidth={0.9} opacity={0.3} />
+            );
+          }
+          return (
+            <>
+              <line x1={left + widthPx * 0.05} y1={top + depthPx * 0.2} x2={left + widthPx * 0.95} y2={top + depthPx * 0.2} stroke={strokeColor} strokeWidth={1} opacity={0.4} />
+              {seams}
+            </>
+          );
+        })()}
 
         {isChaise && (() => {
           const seatDepth = depthPx * 0.62;
@@ -213,7 +325,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
 
           return (
             <>
-              <polygon points={outline} fill="rgba(74, 91, 76, 0.18)" stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} strokeLinejoin="round" />
+              <polygon points={outline} fill={baseFill} stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} strokeLinejoin="round" />
               <line x1={left + widthPx * 0.08} y1={top + seatDepth * 0.5} x2={(chaiseOnRight ? innerX : left + widthPx) - widthPx * 0.04} y2={top + seatDepth * 0.5} stroke={strokeColor} strokeWidth={1.1} opacity={0.5} />
             </>
           );
@@ -244,11 +356,13 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
 
         {isChair && (
           <>
-            <rect x={left + widthPx * 0.18} y={top + depthPx * 0.2} width={widthPx * 0.64} height={depthPx * 0.55} fill="none" stroke={strokeColor} strokeWidth={1.3} rx={3} />
-            <line x1={left + widthPx * 0.22} y1={top + depthPx * 0.2} x2={left + widthPx * 0.22} y2={top + depthPx * 0.05} stroke={strokeColor} strokeWidth={1.2} />
-            <line x1={left + widthPx * 0.78} y1={top + depthPx * 0.2} x2={left + widthPx * 0.78} y2={top + depthPx * 0.05} stroke={strokeColor} strokeWidth={1.2} />
-            <line x1={left + widthPx * 0.26} y1={top + depthPx * 0.76} x2={left + widthPx * 0.26} y2={top + depthPx * 0.92} stroke={strokeColor} strokeWidth={1.1} opacity={0.75} />
-            <line x1={left + widthPx * 0.74} y1={top + depthPx * 0.76} x2={left + widthPx * 0.74} y2={top + depthPx * 0.92} stroke={strokeColor} strokeWidth={1.1} opacity={0.75} />
+            <rect x={left + widthPx * 0.16} y={top + depthPx * 0.34} width={widthPx * 0.68} height={depthPx * 0.58} fill="none" stroke={strokeColor} strokeWidth={1.3} rx={3} />
+            <path
+              d={`M ${left + widthPx * 0.16} ${top + depthPx * 0.32} Q ${fixture.position.x} ${top + depthPx * 0.02} ${left + widthPx * 0.84} ${top + depthPx * 0.32}`}
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth={1.4}
+            />
           </>
         )}
 
@@ -267,7 +381,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         )}
 
         {isFireplace && (
-          <rect x={left + widthPx * 0.15} y={top + depthPx * 0.12} width={widthPx * 0.7} height={depthPx * 0.6} fill="rgba(60, 50, 45, 0.28)" stroke={strokeColor} strokeWidth={1.3} rx={2} />
+          <rect x={left + widthPx * 0.15} y={top + depthPx * 0.12} width={widthPx * 0.7} height={depthPx * 0.6} fill={isTechnical ? '#ffffff' : 'rgba(60, 50, 45, 0.28)'} stroke={strokeColor} strokeWidth={1.3} rx={2} />
         )}
 
         {isPlant && (
@@ -359,8 +473,14 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {isKitchen && (
+        {(isKitchen || isLaundry) && (
           <>
+            {presetIdValue.includes('kitchen-base') && (
+              <>
+                <line x1={left} y1={top + depthPx * 0.14} x2={left + widthPx} y2={top + depthPx * 0.14} stroke={strokeColor} strokeWidth={1} opacity={0.6} />
+                <line x1={fixture.position.x} y1={top + depthPx * 0.14} x2={fixture.position.x} y2={top + depthPx * 0.92} stroke={strokeColor} strokeWidth={0.9} opacity={0.4} />
+              </>
+            )}
             {presetIdValue.includes('fridge') && (
               <>
                 <line x1={left} y1={top + depthPx * 0.5} x2={left + widthPx} y2={top + depthPx * 0.5} stroke={strokeColor} strokeWidth={1.1} opacity={0.75} />
@@ -405,7 +525,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {isLaundry && (
+        {isLaundry && !presetIdValue.includes('sink') && (
           <>
             <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.24} fill="none" stroke={strokeColor} strokeWidth={1.3} />
             <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.13} fill="none" stroke={strokeColor} strokeWidth={1.0} opacity={0.75} />

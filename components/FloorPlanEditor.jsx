@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   BASE_UNIT_OPTIONS,
   GRID,
+  RENDER_MODES,
   VIEW_H,
   VIEW_W,
   EPS
@@ -89,6 +90,7 @@ const TOOL_BUTTONS = [
 export default function FloorPlanEditor() {
   const [planName, setPlanName] = useState('My Home');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [renderMode, setRenderMode] = useState('design');
   const [toolMode, setToolMode] = useState('draw');
   const [newWallType, setNewWallType] = useState('inner');
   const [newWallMaterial, setNewWallMaterial] = useState('wood');
@@ -1010,6 +1012,9 @@ export default function FloorPlanEditor() {
         setSettingsOpen={setSettingsOpen}
         settingsButtonRef={settingsButtonRef}
         settingsPopoverRef={settingsPopoverRef}
+        renderModes={RENDER_MODES}
+        renderMode={renderMode}
+        setRenderMode={setRenderMode}
         toolButtons={TOOL_BUTTONS}
         toolMode={toolMode}
         setToolMode={setToolMode}
@@ -1054,6 +1059,7 @@ export default function FloorPlanEditor() {
       <FloorPlanCanvas
         svgRef={svgRef}
         camera={camera}
+        renderMode={renderMode}
         recenterAndFitCamera={recenterAndFitCamera}
         savePlan={savePlan}
         saveAsNewPlan={saveAsNewPlan}

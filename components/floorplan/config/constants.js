@@ -39,3 +39,9 @@ export const DIN_WALL_THICKNESS_OPTIONS_M = [
   { value: '0.30', label: '30.0 cm (DIN)' },
   { value: '0.365', label: '36.5 cm (DIN)' }
 ];
+
+export const RENDER_MODES = [
+  { value: 'design', label: 'Design' },
+  { value: 'technical', label: 'Technical' },
+  { value: 'utilities', label: 'Utilities' }
+];

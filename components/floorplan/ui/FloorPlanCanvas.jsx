@@ -5,6 +5,7 @@ import FixtureLayer from './FixtureLayer';
 export default function FloorPlanCanvas({
   svgRef,
   camera,
+  renderMode,
   recenterAndFitCamera,
   savePlan,
   saveAsNewPlan,
@@ -45,6 +46,8 @@ export default function FloorPlanCanvas({
   drawPreviewMeasurement,
   draggedVertexMeasurements
 }) {
+  const isSchematic = renderMode === 'technical' || renderMode === 'utilities';
+
   return (
     <div className="canvas-wrap">
       <div className="canvas-top-actions">
@@ -105,6 +108,11 @@ export default function FloorPlanCanvas({
           ⤢
         </button>
       </div>
+      {renderMode === 'utilities' && (
+        <div className="canvas-mode-banner">
+          Utilities layer — electrical, plumbing, and network fixtures aren&apos;t added yet. Showing the technical base plan.
+        </div>
+      )}
       <div className="canvas-top-right-actions">
         <div className="floor-overlay" title={!hasHydrated ? 'Ground floor' : lowerFloorsCount ? `${lowerFloorsCount} lower floor references visible` : 'Ground floor'}>
           <button
@@ -135,6 +143,7 @@ export default function FloorPlanCanvas({
         ref={svgRef}
         viewBox={`${camera.x} ${camera.y} ${camera.w} ${camera.h}`}
         preserveAspectRatio="xMidYMid meet"
+        style={isSchematic ? { background: '#ffffff' } : undefined}
         onMouseMove={onMouseMove}
         onMouseDown={onMouseDown}
         onMouseUp={onMouseUp}
@@ -166,8 +175,8 @@ export default function FloorPlanCanvas({
                 y={cell.y * GRID}
                 width={GRID}
                 height={GRID}
-                fill={floorColorByValue[room.floor]}
-                opacity={(selectedRoomKey === room.key ? 0.6 : hoverRoomKey === room.key ? 0.5 : 0.3) * (0.35 + 0.65 * (cell.coverage || 1))}
+                fill={isSchematic ? 'none' : floorColorByValue[room.floor]}
+                opacity={isSchematic ? 1 : (selectedRoomKey === room.key ? 0.6 : hoverRoomKey === room.key ? 0.5 : 0.3) * (0.35 + 0.65 * (cell.coverage || 1))}
                 onMouseEnter={() => toolMode === 'edit' && setHoverRoomKey(room.key)}
                 onMouseLeave={() => setHoverRoomKey((cur) => (cur === room.key ? null : cur))}
               />
@@ -203,7 +212,7 @@ export default function FloorPlanCanvas({
               y1={wall.start.y}
               x2={wall.end.x}
               y2={wall.end.y}
-              stroke={style.color}
+              stroke={isSchematic ? '#1a1a1a' : style.color}
               strokeWidth={style.width}
               strokeLinecap="round"
               strokeDasharray="10 8"
@@ -223,7 +232,7 @@ export default function FloorPlanCanvas({
               y1={wall.start.y}
               x2={wall.end.x}
               y2={wall.end.y}
-              stroke={style.color}
+              stroke={isSchematic ? (isSelected ? '#0f4d6f' : '#1a1a1a') : style.color}
               strokeWidth={style.width + (isSelected ? 2 : isHover ? 1 : 0)}
               strokeLinecap="round"
               opacity={isSelected ? 1 : isHover ? 0.98 : 0.9}
@@ -245,7 +254,54 @@ export default function FloorPlanCanvas({
           renderFixtures={renderFixtures}
           baseUnitM={baseUnitM}
           selectedFixtureId={selectedFixtureId}
+          renderMode={renderMode}
         />
+
+        {isSchematic && walls.map((wall) => {
+          const dx = wall.end.x - wall.start.x;
+          const dy = wall.end.y - wall.start.y;
+          const len = Math.hypot(dx, dy);
+          if (len < 1) return null;
+
+          const ux = dx / len;
+          const uy = dy / len;
+          const nx = -uy;
+          const ny = ux;
+          const offset = 18;
+          const tick = 5;
+          const p1 = { x: wall.start.x + nx * offset, y: wall.start.y + ny * offset };
+          const p2 = { x: wall.end.x + nx * offset, y: wall.end.y + ny * offset };
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          const meters = (len / GRID) * baseUnitM;
+
+          return (
+            <g key={`dim-${wall.id}`} opacity={0.85}>
+              <line x1={wall.start.x} y1={wall.start.y} x2={p1.x} y2={p1.y} stroke="#333" strokeWidth={0.75} />
+              <line x1={wall.end.x} y1={wall.end.y} x2={p2.x} y2={p2.y} stroke="#333" strokeWidth={0.75} />
+              <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#333" strokeWidth={0.75} />
+              <line
+                x1={p1.x - (ux + nx) * tick}
+                y1={p1.y - (uy + ny) * tick}
+                x2={p1.x + (ux + nx) * tick}
+                y2={p1.y + (uy + ny) * tick}
+                stroke="#333"
+                strokeWidth={1}
+              />
+              <line
+                x1={p2.x - (ux - nx) * tick}
+                y1={p2.y - (uy - ny) * tick}
+                x2={p2.x + (ux - nx) * tick}
+                y2={p2.y + (uy - ny) * tick}
+                stroke="#333"
+                strokeWidth={1}
+              />
+              <text className="dimension-label" x={midX} y={midY} textAnchor="middle">
+                {meters.toFixed(2)} m
+              </text>
+            </g>
+          );
+        })}
 
         {startPoint && hoverPoint && toolMode === 'draw' && (
           <>

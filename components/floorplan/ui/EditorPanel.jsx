@@ -20,6 +20,9 @@ export default function EditorPanel({
   setSettingsOpen,
   settingsButtonRef,
   settingsPopoverRef,
+  renderModes,
+  renderMode,
+  setRenderMode,
   toolButtons,
   toolMode,
   setToolMode,
@@ -76,6 +79,22 @@ export default function EditorPanel({
               ⚙
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="control-group">
+        <span>Render Mode</span>
+        <div className="place-switches">
+          {renderModes.map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              className={renderMode === mode.value ? 'place-switch place-switch-active' : 'place-switch'}
+              onClick={() => setRenderMode(mode.value)}
+            >
+              {mode.label}
+            </button>
+          ))}
         </div>
       </div>
 
