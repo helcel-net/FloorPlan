@@ -21,10 +21,19 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
       const previewOpacity = fixture.isPreview ? 0.45 : 1;
       const isSelected = !fixture.isPreview && selectedFixtureId === fixture.id;
 
+      const previewHighlight = fixture.isPreview && (
+        <polygon
+          points={`${x1 - nx * 16},${y1 - ny * 16} ${x2 - nx * 16},${y2 - ny * 16} ${x2 + nx * 16},${y2 + ny * 16} ${x1 + nx * 16},${y1 + ny * 16}`}
+          fill="#2f6f5e"
+          opacity={0.3}
+        />
+      );
+
       if (fixture.kind === 'window') {
         return (
-          <g key={fixture.id} opacity={previewOpacity}>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={isSelected ? '#0f4d6f' : '#2a6f93'} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" />
+          <g key={fixture.id}>
+            {previewHighlight}
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={isSelected ? '#0f4d6f' : '#2a6f93'} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" opacity={previewOpacity} />
           </g>
         );
       }
@@ -50,7 +59,9 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
       const doorTypeValue = fixture.doorType || 'open';
 
       return (
-        <g key={fixture.id} opacity={previewOpacity}>
+        <g key={fixture.id}>
+          {previewHighlight}
+          <g opacity={previewOpacity}>
           <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={isSelected ? '#7f2b21' : '#8a7b62'} strokeWidth={isSelected ? 2.5 : 1.5} strokeDasharray="5 4" />
           {doorTypeValue === 'swing' && (
             <>
@@ -99,6 +110,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
               })()}
             </>
           )}
+          </g>
         </g>
       );
     }

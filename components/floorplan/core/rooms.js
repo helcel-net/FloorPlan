@@ -1,9 +1,13 @@
 import { EPS, GRID, GRID_CELL_M2 } from '../config/constants';
 import { regionIdFromCentroid, toGridVertexKey, toKey } from './geometry';
 
-const MIN_ROOM_DIMENSION_M = 0.5;
-const MIN_ROOM_FIT_DIAMETER_M = 0.5;
-const MIN_ROOM_AREA_M2 = 0.5;
+// Closets, cupboards, and technical shafts are typically 0.4-0.7m in their
+// narrow dimension, so the minimum has to clear that band to keep them from
+// being auto-detected as rooms, while still allowing small real rooms
+// (a compact WC, a utility nook) through.
+const MIN_ROOM_DIMENSION_M = 0.9;
+const MIN_ROOM_FIT_DIAMETER_M = 0.7;
+const MIN_ROOM_AREA_M2 = 0.8;
 
 function parseVertexKey(key) {
   const [x, y] = key.split(',').map(Number);
@@ -343,6 +347,25 @@ export function buildRoomRegions(walls, _wallThicknessByTypeM, baseUnitM) {
     });
   }
 
+  // A region whose cells are entirely enclosed inside another region (e.g. a
+  // courtyard, light well, or free-standing structure with its own closed
+  // wall loop, sharing no walls with the outer perimeter) is a hole in that
+  // outer region, not extra floor area - subtract it out. Adjacent rooms
+  // that share a wall are unaffected: face-tracing already gives them
+  // disjoint, non-overlapping cells, so they never look "contained".
+  for (const outer of regions) {
+    for (const inner of regions) {
+      if (inner === outer || inner.cells.length >= outer.cells.length) continue;
+      const outerKeys = new Set(outer.cells.map((c) => toKey(c.x, c.y)));
+      const isHole = inner.cells.every((c) => outerKeys.has(toKey(c.x, c.y)));
+      if (!isHole) continue;
+
+      const innerKeys = new Set(inner.cells.map((c) => toKey(c.x, c.y)));
+      outer.cells = outer.cells.filter((c) => !innerKeys.has(toKey(c.x, c.y)));
+      outer.areaM2 = Math.max(0, outer.areaM2 - inner.areaM2);
+    }
+  }
+
   return regions;
 }
 
@@ -390,27 +413,52 @@ export function isRegionBoundedByClosedConnectedWalls(region, walls) {
   const roomWalls = (walls || []).filter((wall) => ids.has(wall.id));
   if (roomWalls.length < 3) return false;
 
+  const edges = roomWalls.map((wall) => ({
+    wall,
+    a: toGridVertexKey(wall.start),
+    b: toGridVertexKey(wall.end)
+  }));
+
   const degreeByVertex = new Map();
+  for (const edge of edges) {
+    degreeByVertex.set(edge.a, (degreeByVertex.get(edge.a) || 0) + 1);
+    degreeByVertex.set(edge.b, (degreeByVertex.get(edge.b) || 0) + 1);
+  }
+
+  // Dangling partial walls (e.g. a partition that only reaches partway into
+  // the room) show up as an edge with a free-hanging, degree-1 endpoint.
+  // They don't break the room's enclosure, so peel them off before checking
+  // that what's left forms a single closed, connected loop.
+  let activeEdges = edges;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const nextEdges = [];
+    for (const edge of activeEdges) {
+      const degA = degreeByVertex.get(edge.a) || 0;
+      const degB = degreeByVertex.get(edge.b) || 0;
+      if (degA < 2 || degB < 2) {
+        degreeByVertex.set(edge.a, degA - 1);
+        degreeByVertex.set(edge.b, degB - 1);
+        changed = true;
+        continue;
+      }
+      nextEdges.push(edge);
+    }
+    activeEdges = nextEdges;
+  }
+
+  if (activeEdges.length < 3) return false;
+
   const adjacency = new Map();
-
-  function addEdge(a, b) {
-    degreeByVertex.set(a, (degreeByVertex.get(a) || 0) + 1);
-    degreeByVertex.set(b, (degreeByVertex.get(b) || 0) + 1);
-    if (!adjacency.has(a)) adjacency.set(a, new Set());
-    if (!adjacency.has(b)) adjacency.set(b, new Set());
-    adjacency.get(a).add(b);
-    adjacency.get(b).add(a);
+  for (const edge of activeEdges) {
+    if (!adjacency.has(edge.a)) adjacency.set(edge.a, new Set());
+    if (!adjacency.has(edge.b)) adjacency.set(edge.b, new Set());
+    adjacency.get(edge.a).add(edge.b);
+    adjacency.get(edge.b).add(edge.a);
   }
 
-  for (const wall of roomWalls) {
-    addEdge(toGridVertexKey(wall.start), toGridVertexKey(wall.end));
-  }
-
-  for (const degree of degreeByVertex.values()) {
-    if (degree < 2) return false;
-  }
-
-  const vertices = [...degreeByVertex.keys()];
+  const vertices = [...adjacency.keys()];
   if (!vertices.length) return false;
 
   const seen = new Set([vertices[0]]);
@@ -427,7 +475,7 @@ export function isRegionBoundedByClosedConnectedWalls(region, walls) {
   }
 
   if (seen.size !== vertices.length) return false;
-  return roomWalls.length >= vertices.length;
+  return activeEdges.length >= vertices.length;
 }
 
 function vertexIsCorner(dirs) {

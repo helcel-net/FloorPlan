@@ -503,7 +503,7 @@ export default function FloorPlanEditor() {
 
     if (!dragState) return;
 
-    const snappedRaw = dragState.kind === 'fixture' && dragState.original.kind === 'furniture'
+    const snappedRaw = dragState.kind === 'fixture'
       ? snapToHalfGrid(raw.x, raw.y)
       : snapToGrid(raw.x, raw.y);
     setDragPreviewPoint(snappedRaw);
@@ -550,16 +550,11 @@ export default function FloorPlanEditor() {
     if (dragState.kind === 'fixture') {
       const movedPoint = clampPoint({ x: dragState.original.position.x + dx, y: dragState.original.position.y + dy });
       if (dragState.original.kind === 'door' || dragState.original.kind === 'window') {
-        const snapped = snapToGrid(movedPoint.x, movedPoint.y);
-        const wall = findWallAtPoint(snapped, 18);
+        const wall = findWallAtPoint(movedPoint, 18);
         if (!wall) return;
         setFixtures((current) => current.map((f) => {
           if (f.id !== dragState.original.id) return f;
-          const rebound = rebindOpeningFixtureToWall(f, wall);
-          return {
-            ...rebound,
-            position: snapToGrid(rebound.position.x, rebound.position.y)
-          };
+          return rebindOpeningFixtureToWall({ ...f, position: movedPoint }, wall);
         }));
         return;
       }
@@ -594,7 +589,7 @@ export default function FloorPlanEditor() {
 
     const fixtureHit = findFixtureAtPoint(point);
     if (fixtureHit) {
-      const fixtureAnchor = fixtureHit.kind === 'furniture' ? snapToHalfGrid(point.x, point.y) : snapToGrid(point.x, point.y);
+      const fixtureAnchor = snapToHalfGrid(point.x, point.y);
       selectFixture(fixtureHit.id);
       setDragState({
         kind: 'fixture',
