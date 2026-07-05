@@ -20,6 +20,13 @@ export const WINDOW_PRESETS_M = [
   { value: 1.5, label: '1500 mm (DIN)' }
 ];
 
+export const WINDOW_TYPES = [
+  { value: 'fixed', label: 'Fixed' },
+  { value: 'swing', label: 'Swing' },
+  { value: 'slide', label: 'Slide' },
+  { value: 'tilt', label: 'Tilt' }
+];
+
 export const FURNITURE_PRESETS = {
   living: [
     { id: 'sofa-180x90', label: 'Sofa 1800 x 900 mm', widthM: 1.8, depthM: 0.9 },
@@ -143,6 +150,19 @@ export const FURNITURE_PRESETS = {
     { id: 'parasol-300', label: 'Parasol 3000 x 3000 mm', widthM: 3.0, depthM: 3.0 },
     { id: 'firepit-80', label: 'Fire Pit 800 x 800 mm', widthM: 0.8, depthM: 0.8 },
     { id: 'plant-pot-xl-90', label: 'Large Planter 900 x 900 mm', widthM: 0.9, depthM: 0.9 }
+  ],
+  electric: [
+    { id: 'electric-outlet-10x10', label: 'Outlet 100 x 100 mm', widthM: 0.1, depthM: 0.1 },
+    { id: 'electric-switch-8x8', label: 'Light Switch 80 x 80 mm', widthM: 0.08, depthM: 0.08 },
+    { id: 'electric-panel-40x15', label: 'Electrical Panel 400 x 150 mm', widthM: 0.4, depthM: 0.15 },
+    { id: 'electric-solar-inverter-40x30', label: 'Solar Inverter 400 x 300 mm', widthM: 0.4, depthM: 0.3 }
+  ],
+  water: [
+    { id: 'water-valve-10x10', label: 'Shutoff Valve 100 x 100 mm', widthM: 0.1, depthM: 0.1 },
+    { id: 'water-drain-10x10', label: 'Floor Drain 100 x 100 mm', widthM: 0.1, depthM: 0.1 },
+    { id: 'water-pump-30x30', label: 'Water Pump 300 x 300 mm', widthM: 0.3, depthM: 0.3 },
+    { id: 'water-filter-25x25', label: 'Water Filter 250 x 250 mm', widthM: 0.25, depthM: 0.25 },
+    { id: 'water-heater-50x50', label: 'Water Heater 500 x 500 mm', widthM: 0.5, depthM: 0.5 }
   ]
 };
 export const FURNITURE_TYPES = [
@@ -156,6 +176,5 @@ export const FURNITURE_TYPES = [
   { value: 'bath', label: 'Bath' },
   { value: 'bedroom', label: 'Bedroom' },
   { value: 'office', label: 'Office' },
-  { value: 'stairs', label: 'Stairs' },
   { value: 'garden', label: 'Garden' }
 ];

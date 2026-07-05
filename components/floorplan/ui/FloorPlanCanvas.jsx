@@ -1,5 +1,5 @@
-import { GRID } from '../config/constants';
-import { getSvgPoint, snapToGrid } from '../core/geometry';
+import { EPS, GRID } from '../config/constants';
+import { dist, getSvgPoint, snapToGrid } from '../core/geometry';
 import FixtureLayer from './FixtureLayer';
 
 export default function FloorPlanCanvas({
@@ -110,7 +110,7 @@ export default function FloorPlanCanvas({
       </div>
       {renderMode === 'utilities' && (
         <div className="canvas-mode-banner">
-          Utilities layer — electrical, plumbing, and network fixtures aren&apos;t added yet. Showing the technical base plan.
+          Utilities layer — electrical (amber) and water (blue) fixtures highlighted. Wire and pipe routing isn&apos;t modeled yet.
         </div>
       )}
       <div className="canvas-top-right-actions">
@@ -267,22 +267,44 @@ export default function FloorPlanCanvas({
           const uy = dy / len;
           const nx = -uy;
           const ny = ux;
+
+          // Show the interior/clear span rather than the raw centerline
+          // length: at each end, if exactly one other wall shares that
+          // corner, shorten the shown dimension by half that wall's
+          // thickness (its face eats into this run). Ambiguous junctions
+          // (none or several walls sharing the vertex) fall back to the
+          // centerline point there, rather than guessing.
+          const vertexEps = 0.5;
+          const insetAt = (vertex) => {
+            const others = walls.filter((w) => (
+              w.id !== wall.id
+              && (dist(w.start, vertex) < vertexEps || dist(w.end, vertex) < vertexEps)
+            ));
+            if (others.length !== 1) return 0;
+            return wallStyle(others[0]).width / 2;
+          };
+          const startInset = Math.min(len / 2, insetAt(wall.start));
+          const endInset = Math.min(len / 2, insetAt(wall.end));
+          const dimStart = { x: wall.start.x + ux * startInset, y: wall.start.y + uy * startInset };
+          const dimEnd = { x: wall.end.x - ux * endInset, y: wall.end.y - uy * endInset };
+          const clearLen = Math.max(0, len - startInset - endInset);
+
           // Clear the wall's own rendered thickness before offsetting the
           // dimension line out, so thicker (e.g. outer/DIN) walls don't push
           // the extension lines to overlap the wall stroke itself.
           const wallHalfThickness = wallStyle(wall).width / 2;
           const offset = wallHalfThickness + 10;
           const tick = 5;
-          const p1 = { x: wall.start.x + nx * offset, y: wall.start.y + ny * offset };
-          const p2 = { x: wall.end.x + nx * offset, y: wall.end.y + ny * offset };
+          const p1 = { x: dimStart.x + nx * offset, y: dimStart.y + ny * offset };
+          const p2 = { x: dimEnd.x + nx * offset, y: dimEnd.y + ny * offset };
           const midX = (p1.x + p2.x) / 2;
           const midY = (p1.y + p2.y) / 2;
-          const meters = (len / GRID) * baseUnitM;
+          const meters = (clearLen / GRID) * baseUnitM;
 
           return (
             <g key={`dim-${wall.id}`} opacity={0.85}>
-              <line x1={wall.start.x} y1={wall.start.y} x2={p1.x} y2={p1.y} stroke="#333" strokeWidth={0.75} />
-              <line x1={wall.end.x} y1={wall.end.y} x2={p2.x} y2={p2.y} stroke="#333" strokeWidth={0.75} />
+              <line x1={dimStart.x} y1={dimStart.y} x2={p1.x} y2={p1.y} stroke="#333" strokeWidth={0.75} />
+              <line x1={dimEnd.x} y1={dimEnd.y} x2={p2.x} y2={p2.y} stroke="#333" strokeWidth={0.75} />
               <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#333" strokeWidth={0.75} />
               <line
                 x1={p1.x - (ux + nx) * tick}

@@ -9,9 +9,12 @@ import {
   DOOR_PRESETS_M,
   DOOR_TYPES,
   FURNITURE_TYPES,
-  WINDOW_PRESETS_M
+  WINDOW_PRESETS_M,
+  WINDOW_TYPES
 } from '../editor/catalog';
 import { thicknessOptionValue } from '../core/walls';
+
+const BUILDING_FURNITURE_TYPES = ['stairs', 'electric', 'water'];
 
 export default function EditorPanel({
   planName,
@@ -41,6 +44,8 @@ export default function EditorPanel({
   setDoorHinge,
   doorWidthM,
   setDoorWidthM,
+  windowType,
+  setWindowType,
   windowWidthM,
   setWindowWidthM,
   furnitureType,
@@ -136,77 +141,147 @@ export default function EditorPanel({
         </>
       )}
 
-      {toolMode === 'place' && (
-        <>
-          <div className="control-group">
-            <span>Place Category</span>
-            <div className="place-switches">
-              <button type="button" className={placeKind === 'door' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setPlaceKind('door')}>Door</button>
-              <button type="button" className={placeKind === 'window' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setPlaceKind('window')}>Window</button>
-              <button type="button" className={placeKind === 'furniture' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setPlaceKind('furniture')}>Furniture</button>
-            </div>
-          </div>
+      {toolMode === 'place' && (() => {
+        const isBuildingCategory = placeKind === 'door' || placeKind === 'window' || (placeKind === 'furniture' && BUILDING_FURNITURE_TYPES.includes(furnitureType));
 
-          {placeKind === 'door' && (
-            <>
-              <div className="control-group">
-                <label htmlFor="door-type">Door Type</label>
-                <select id="door-type" value={doorType} onChange={(e) => setDoorType(e.target.value)}>
-                  {DOOR_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
-              </div>
-              <div className="control-group">
-                <label htmlFor="door-hinge">Door Hinge</label>
-                <select id="door-hinge" value={doorHinge} onChange={(e) => setDoorHinge(e.target.value)}>
-                  <option value="left">Left Hinge</option>
-                  <option value="right">Right Hinge</option>
-                </select>
-              </div>
-              <div className="control-group">
-                <label htmlFor="door-preset">Door Width Preset</label>
-                <select id="door-preset" value={String(doorWidthM)} onChange={(e) => setDoorWidthM(Number(e.target.value))}>
-                  {DOOR_PRESETS_M.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
-              </div>
-            </>
-          )}
-
-          {placeKind === 'window' && (
+        return (
+          <>
             <div className="control-group">
-              <label htmlFor="window-preset">Window Width Preset</label>
-              <select id="window-preset" value={String(windowWidthM)} onChange={(e) => setWindowWidthM(Number(e.target.value))}>
-                {WINDOW_PRESETS_M.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+              <span>Place Category</span>
+              <div className="place-switches">
+                <button
+                  type="button"
+                  className={isBuildingCategory ? 'place-switch place-switch-active' : 'place-switch'}
+                  onClick={() => { if (!isBuildingCategory) setPlaceKind('door'); }}
+                >
+                  Building
+                </button>
+                <button
+                  type="button"
+                  className={!isBuildingCategory ? 'place-switch place-switch-active' : 'place-switch'}
+                  onClick={() => { if (isBuildingCategory) { setPlaceKind('furniture'); setFurnitureType('living'); } }}
+                >
+                  Furniture
+                </button>
+              </div>
             </div>
-          )}
 
-          {placeKind === 'furniture' && (
-            <>
+            {isBuildingCategory && (
               <div className="control-group">
-                <span>Furniture Type</span>
-                <div className="furniture-type-grid">
-                  {FURNITURE_TYPES.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      className={furnitureType === item.value ? 'place-switch place-switch-active' : 'place-switch'}
-                      onClick={() => setFurnitureType(item.value)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                <span>Building Element</span>
+                <div className="place-switches">
+                  <button type="button" className={placeKind === 'door' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setPlaceKind('door')}>Door</button>
+                  <button type="button" className={placeKind === 'window' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setPlaceKind('window')}>Window</button>
+                  <button type="button" className={placeKind === 'furniture' && furnitureType === 'stairs' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => { setPlaceKind('furniture'); setFurnitureType('stairs'); }}>Stairs</button>
+                  <button type="button" className={placeKind === 'furniture' && (furnitureType === 'electric' || furnitureType === 'water') ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => { setPlaceKind('furniture'); setFurnitureType('electric'); }}>Utilities</button>
                 </div>
               </div>
+            )}
+
+            {placeKind === 'door' && (
+              <>
+                <div className="control-group">
+                  <span>Door Type</span>
+                  <div className="furniture-type-grid">
+                    {DOOR_TYPES.map((item) => (
+                      <button key={item.value} type="button" className={doorType === item.value ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setDoorType(item.value)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="control-group">
+                  <span>Door Hinge</span>
+                  <div className="place-switches">
+                    <button type="button" className={doorHinge === 'left' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setDoorHinge('left')}>Left Hinge</button>
+                    <button type="button" className={doorHinge === 'right' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setDoorHinge('right')}>Right Hinge</button>
+                  </div>
+                </div>
+                <div className="control-group">
+                  <label htmlFor="door-preset">Door Width Preset</label>
+                  <select id="door-preset" value={String(doorWidthM)} onChange={(e) => setDoorWidthM(Number(e.target.value))}>
+                    {DOOR_PRESETS_M.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {placeKind === 'window' && (
+              <>
+                <div className="control-group">
+                  <span>Window Type</span>
+                  <div className="furniture-type-grid">
+                    {WINDOW_TYPES.map((item) => (
+                      <button key={item.value} type="button" className={windowType === item.value ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setWindowType(item.value)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="control-group">
+                  <label htmlFor="window-preset">Window Width Preset</label>
+                  <select id="window-preset" value={String(windowWidthM)} onChange={(e) => setWindowWidthM(Number(e.target.value))}>
+                    {WINDOW_PRESETS_M.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {placeKind === 'furniture' && furnitureType === 'stairs' && (
               <div className="control-group">
-                <label htmlFor="furniture-preset">Furniture Preset</label>
-                <select id="furniture-preset" value={furniturePresetId} onChange={(e) => setFurniturePresetId(e.target.value)}>
+                <label htmlFor="stairs-preset">Stairs Preset</label>
+                <select id="stairs-preset" value={furniturePresetId} onChange={(e) => setFurniturePresetId(e.target.value)}>
                   {activeFurniturePresets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </div>
-            </>
-          )}
-        </>
-      )}
+            )}
+
+            {placeKind === 'furniture' && (furnitureType === 'electric' || furnitureType === 'water') && (
+              <>
+                <div className="control-group">
+                  <span>Utility Type</span>
+                  <div className="place-switches">
+                    <button type="button" className={furnitureType === 'electric' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setFurnitureType('electric')}>Electric</button>
+                    <button type="button" className={furnitureType === 'water' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setFurnitureType('water')}>Water</button>
+                  </div>
+                </div>
+                <div className="control-group">
+                  <label htmlFor="utility-preset">Utility Preset</label>
+                  <select id="utility-preset" value={furniturePresetId} onChange={(e) => setFurniturePresetId(e.target.value)}>
+                    {activeFurniturePresets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {placeKind === 'furniture' && !BUILDING_FURNITURE_TYPES.includes(furnitureType) && (
+              <>
+                <div className="control-group">
+                  <span>Furniture Type</span>
+                  <div className="furniture-type-grid">
+                    {FURNITURE_TYPES.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className={furnitureType === item.value ? 'place-switch place-switch-active' : 'place-switch'}
+                        onClick={() => setFurnitureType(item.value)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="control-group">
+                  <label htmlFor="furniture-preset">Furniture Preset</label>
+                  <select id="furniture-preset" value={furniturePresetId} onChange={(e) => setFurniturePresetId(e.target.value)}>
+                    {activeFurniturePresets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {settingsOpen && (
         <div className="settings-popover" ref={settingsPopoverRef}>

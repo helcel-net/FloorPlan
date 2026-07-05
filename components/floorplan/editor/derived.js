@@ -148,6 +148,7 @@ export function buildPlacePreviewFixture({
   doorType,
   doorHinge,
   doorWidthM,
+  windowType,
   windowWidthM,
   findWallAtPoint
 }) {
@@ -185,6 +186,7 @@ export function buildPlacePreviewFixture({
     id: 'preview-window',
     rawPoint: hoverRawPoint,
     wall,
+    windowType,
     windowWidthM,
     isPreview: true
   });

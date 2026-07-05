@@ -98,6 +98,7 @@ export default function FloorPlanEditor() {
   const [doorType, setDoorType] = useState('open');
   const [doorHinge, setDoorHinge] = useState('left');
   const [doorWidthM, setDoorWidthM] = useState(DOOR_PRESETS_M[1].value);
+  const [windowType, setWindowType] = useState('fixed');
   const [windowWidthM, setWindowWidthM] = useState(WINDOW_PRESETS_M[2].value);
   const [furnitureType, setFurnitureType] = useState('living');
   const [furniturePresetId, setFurniturePresetId] = useState(FURNITURE_PRESETS.living[0].id);
@@ -339,6 +340,7 @@ export default function FloorPlanEditor() {
       doorType,
       doorHinge,
       doorWidthM,
+      windowType,
       windowWidthM,
       findWallAtPoint
     }),
@@ -353,6 +355,7 @@ export default function FloorPlanEditor() {
       doorType,
       doorHinge,
       doorWidthM,
+      windowType,
       windowWidthM,
       findWallAtPoint
     ]
@@ -701,6 +704,7 @@ export default function FloorPlanEditor() {
         setFixtures((current) => current.concat(buildPlacedWindowFixture({
           rawPoint: raw,
           wall,
+          windowType,
           windowWidthM
         })));
       }
@@ -1033,6 +1037,8 @@ export default function FloorPlanEditor() {
         setDoorHinge={setDoorHinge}
         doorWidthM={doorWidthM}
         setDoorWidthM={setDoorWidthM}
+        windowType={windowType}
+        setWindowType={setWindowType}
         windowWidthM={windowWidthM}
         setWindowWidthM={setWindowWidthM}
         furnitureType={furnitureType}

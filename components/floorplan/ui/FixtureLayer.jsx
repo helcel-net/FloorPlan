@@ -3,6 +3,7 @@ import { isWallOpeningFixture, normalizeFurnitureType } from '../editor/utils';
 
 export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtureId, renderMode }) {
   const isTechnical = renderMode === 'technical' || renderMode === 'utilities';
+  const isUtilitiesMode = renderMode === 'utilities';
 
   return renderFixtures.map((fixture) => {
     if (isWallOpeningFixture(fixture)) {
@@ -34,15 +35,6 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         />
       );
 
-      if (fixture.kind === 'window') {
-        return (
-          <g key={fixture.id}>
-            {previewHighlight}
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={windowStroke} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" opacity={previewOpacity} />
-          </g>
-        );
-      }
-
       const hingeSign = fixture.hinge === 'right' ? -1 : 1;
       const swingSide = Number(fixture.swingSide) >= 0 ? -1 : 1;
       const hingeAxisX = axisX * swingSide;
@@ -61,6 +53,44 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
       const closedEndY = hingeY + closedVecY * leafLength;
       const cross = (closedVecX * openVecY) - (closedVecY * openVecX);
       const sweepFlag = cross < 0 ? 0 : 1;
+
+      if (fixture.kind === 'window') {
+        const windowTypeValue = fixture.windowType || 'fixed';
+        const tiltApexX = fixture.position.x + openVecX * widthPx * 0.28;
+        const tiltApexY = fixture.position.y + openVecY * widthPx * 0.28;
+
+        return (
+          <g key={fixture.id}>
+            {previewHighlight}
+            <g opacity={previewOpacity}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={windowStroke} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" />
+              {windowTypeValue === 'swing' && (
+                <>
+                  <line x1={hingeX} y1={hingeY} x2={leafEndX} y2={leafEndY} stroke={windowStroke} strokeWidth={isSelected ? 2 : 1.5} strokeLinecap="round" />
+                  <path d={`M ${closedEndX} ${closedEndY} A ${leafLength} ${leafLength} 0 0 ${sweepFlag} ${leafEndX} ${leafEndY}`} fill="none" stroke={windowStroke} strokeWidth={isSelected ? 1.5 : 1} />
+                </>
+              )}
+              {windowTypeValue === 'slide' && (
+                <line
+                  x1={x1 + nx * swingSide * 6}
+                  y1={y1 + ny * swingSide * 6}
+                  x2={x2 + nx * swingSide * 6}
+                  y2={y2 + ny * swingSide * 6}
+                  stroke={windowStroke}
+                  strokeWidth={isSelected ? 2 : 1.5}
+                />
+              )}
+              {windowTypeValue === 'tilt' && (
+                <>
+                  <line x1={x1} y1={y1} x2={tiltApexX} y2={tiltApexY} stroke={windowStroke} strokeWidth={isSelected ? 1.5 : 1} strokeDasharray="3 3" />
+                  <line x1={x2} y1={y2} x2={tiltApexX} y2={tiltApexY} stroke={windowStroke} strokeWidth={isSelected ? 1.5 : 1} strokeDasharray="3 3" />
+                </>
+              )}
+            </g>
+          </g>
+        );
+      }
+
       const doorTypeValue = fixture.doorType || 'open';
 
       return (
@@ -146,11 +176,17 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
     const isBath = furnitureTypeValue === 'bath';
     const isKitchen = furnitureTypeValue === 'kitchen';
     const isLaundry = furnitureTypeValue === 'laundry';
+    const isElectric = furnitureTypeValue === 'electric';
+    const isWater = furnitureTypeValue === 'water';
     const isStairs = presetIdValue.startsWith('stairs-');
     const isChaise = isSofa && presetIdValue.includes('chaise');
     const chaiseOnRight = presetIdValue.includes('-r-');
 
-    const baseFill = isTechnical
+    const isUtilityItem = isElectric || isWater;
+    const highlightUtility = isUtilitiesMode && isUtilityItem;
+    const flatTechnical = isTechnical && !highlightUtility;
+
+    const baseFill = flatTechnical
       ? '#ffffff'
       : isPlant
         ? 'rgba(74, 122, 81, 0.18)'
@@ -158,19 +194,32 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           ? 'rgba(154, 130, 92, 0.10)'
           : isFirepit
             ? 'rgba(60, 50, 45, 0.22)'
-            : ((isKitchen || isLaundry || isBath || isStairs || isMirror || isBbq) ? 'rgba(101, 117, 132, 0.18)' : 'rgba(58, 95, 66, 0.15)');
-    const baseStroke = isTechnical
+            : isElectric
+              ? 'rgba(196, 148, 58, 0.20)'
+              : isWater
+                ? 'rgba(58, 122, 154, 0.18)'
+                : ((isKitchen || isLaundry || isBath || isStairs || isMirror || isBbq) ? 'rgba(101, 117, 132, 0.18)' : 'rgba(58, 95, 66, 0.15)');
+    const baseStroke = flatTechnical
       ? '#1a1a1a'
       : isPlant
         ? '#3f6f49'
         : isRug
           ? '#9a8258'
-          : ((isKitchen || isLaundry || isBath || isStairs || isMirror || isBbq) ? '#4f6072' : '#3a5f42');
-    const strokeColor = isSelected ? (isTechnical ? '#0f4d6f' : '#22303b') : baseStroke;
+          : isElectric
+            ? '#8a6a1f'
+            : isWater
+              ? '#2f6a93'
+              : ((isKitchen || isLaundry || isBath || isStairs || isMirror || isBbq) ? '#4f6072' : '#3a5f42');
+    const strokeColor = isSelected ? (flatTechnical ? '#0f4d6f' : '#22303b') : baseStroke;
+    const fixtureOpacity = fixture.isPreview
+      ? 0.45
+      : isUtilitiesMode
+        ? (isUtilityItem ? 1 : 0.15)
+        : (isTechnical ? 0.5 : 1);
     return (
       <g
         key={fixture.id}
-        opacity={fixture.isPreview ? 0.45 : (isTechnical ? 0.5 : 1)}
+        opacity={fixtureOpacity}
         transform={`rotate(${Number(fixture.angleDeg) || 0} ${fixture.position.x} ${fixture.position.y})`}
       >
         {!isChaise && !isRug && !isStool && !isFirepit && !isParasol && (
@@ -563,6 +612,125 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
             </>
           );
         })()}
+
+        {presetIdValue.startsWith('electric-outlet-') && (
+          <>
+            <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.42} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <line x1={fixture.position.x - widthPx * 0.14} y1={fixture.position.y - depthPx * 0.16} x2={fixture.position.x - widthPx * 0.14} y2={fixture.position.y + depthPx * 0.16} stroke={strokeColor} strokeWidth={1.3} />
+            <line x1={fixture.position.x + widthPx * 0.14} y1={fixture.position.y - depthPx * 0.16} x2={fixture.position.x + widthPx * 0.14} y2={fixture.position.y + depthPx * 0.16} stroke={strokeColor} strokeWidth={1.3} />
+          </>
+        )}
+
+        {presetIdValue.startsWith('electric-switch-') && (
+          <>
+            <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.38} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <line
+              x1={fixture.position.x - widthPx * 0.14}
+              y1={fixture.position.y + depthPx * 0.16}
+              x2={fixture.position.x + widthPx * 0.16}
+              y2={fixture.position.y - depthPx * 0.18}
+              stroke={strokeColor}
+              strokeWidth={1.4}
+            />
+          </>
+        )}
+
+        {presetIdValue.startsWith('electric-panel-') && (
+          <>
+            <rect x={left + widthPx * 0.12} y={top + depthPx * 0.1} width={widthPx * 0.76} height={depthPx * 0.8} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            {[0.28, 0.46, 0.64, 0.82].map((f) => (
+              <line
+                key={`breaker-${f}`}
+                x1={left + widthPx * 0.22}
+                y1={top + depthPx * f}
+                x2={left + widthPx * 0.78}
+                y2={top + depthPx * f}
+                stroke={strokeColor}
+                strokeWidth={1}
+                opacity={0.7}
+              />
+            ))}
+          </>
+        )}
+
+        {presetIdValue.startsWith('electric-solar-') && (
+          <>
+            <rect x={left + widthPx * 0.1} y={top + depthPx * 0.1} width={widthPx * 0.8} height={depthPx * 0.8} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <polyline
+              points={`${left + widthPx * 0.2},${top + depthPx * 0.65} ${left + widthPx * 0.38},${top + depthPx * 0.35} ${left + widthPx * 0.52},${top + depthPx * 0.65} ${left + widthPx * 0.7},${top + depthPx * 0.35} ${left + widthPx * 0.82},${top + depthPx * 0.55}`}
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth={1.3}
+            />
+          </>
+        )}
+
+        {presetIdValue.startsWith('water-valve-') && (
+          <>
+            <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.34} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <line x1={fixture.position.x} y1={top + depthPx * 0.08} x2={fixture.position.x} y2={top + depthPx * 0.3} stroke={strokeColor} strokeWidth={1.3} />
+          </>
+        )}
+
+        {presetIdValue.startsWith('water-drain-') && (
+          <>
+            <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.4} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <line x1={fixture.position.x} y1={fixture.position.y - depthPx * 0.22} x2={fixture.position.x} y2={fixture.position.y + depthPx * 0.22} stroke={strokeColor} strokeWidth={1.1} />
+            <line x1={fixture.position.x - widthPx * 0.22} y1={fixture.position.y} x2={fixture.position.x + widthPx * 0.22} y2={fixture.position.y} stroke={strokeColor} strokeWidth={1.1} />
+          </>
+        )}
+
+        {presetIdValue.startsWith('water-pump-') && (
+          <>
+            <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.4} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <line
+              x1={fixture.position.x - widthPx * 0.18}
+              y1={fixture.position.y - depthPx * 0.18}
+              x2={fixture.position.x + widthPx * 0.18}
+              y2={fixture.position.y + depthPx * 0.18}
+              stroke={strokeColor}
+              strokeWidth={1.1}
+            />
+            <line
+              x1={fixture.position.x + widthPx * 0.18}
+              y1={fixture.position.y - depthPx * 0.18}
+              x2={fixture.position.x - widthPx * 0.18}
+              y2={fixture.position.y + depthPx * 0.18}
+              stroke={strokeColor}
+              strokeWidth={1.1}
+            />
+          </>
+        )}
+
+        {presetIdValue.startsWith('water-filter-') && (
+          <>
+            <rect x={left + widthPx * 0.14} y={top + depthPx * 0.08} width={widthPx * 0.72} height={depthPx * 0.84} fill="none" stroke={strokeColor} strokeWidth={1.1} rx={widthPx * 0.1} />
+            {[0.3, 0.48, 0.66, 0.84].map((f) => (
+              <line
+                key={`mesh-${f}`}
+                x1={left + widthPx * 0.22}
+                y1={top + depthPx * f}
+                x2={left + widthPx * 0.78}
+                y2={top + depthPx * f}
+                stroke={strokeColor}
+                strokeWidth={1}
+                opacity={0.7}
+              />
+            ))}
+          </>
+        )}
+
+        {presetIdValue.startsWith('water-heater-') && (
+          <>
+            <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.36} fill="none" stroke={strokeColor} strokeWidth={1.1} />
+            <polyline
+              points={`${fixture.position.x - widthPx * 0.16},${fixture.position.y + depthPx * 0.1} ${fixture.position.x - widthPx * 0.05},${fixture.position.y - depthPx * 0.12} ${fixture.position.x + widthPx * 0.06},${fixture.position.y + depthPx * 0.1} ${fixture.position.x + widthPx * 0.17},${fixture.position.y - depthPx * 0.12}`}
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth={1.2}
+            />
+          </>
+        )}
       </g>
     );
   });

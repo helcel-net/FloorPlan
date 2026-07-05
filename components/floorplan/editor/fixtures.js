@@ -66,13 +66,16 @@ export function buildPlacedWindowFixture({
   id = crypto.randomUUID(),
   rawPoint,
   wall,
+  windowType,
   windowWidthM,
   isPreview = false
 }) {
-  const { position, angle } = buildWallOpeningPlacement(rawPoint, wall);
+  const { position, angle, sideValue } = buildWallOpeningPlacement(rawPoint, wall);
   return withPreviewFlag({
     id,
     kind: 'window',
+    windowType,
+    swingSide: sideValue,
     widthM: Number(windowWidthM),
     wallId: wall.id,
     position,
@@ -85,7 +88,7 @@ export function rebindOpeningFixtureToWall(fixture, wall) {
   const position = { x: projected.x, y: projected.y };
   const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
 
-  if (fixture.kind !== 'door') {
+  if (fixture.kind !== 'door' && fixture.kind !== 'window') {
     return { ...fixture, wallId: wall.id, position, angle };
   }
 
