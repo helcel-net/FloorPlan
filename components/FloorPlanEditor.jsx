@@ -144,7 +144,7 @@ export default function FloorPlanEditor() {
     .slice(0, activeFloorIndex)
     .map((floor, index) => ({
       floorId: floor.id,
-      opacity: 0.5 ** (activeFloorIndex - index),
+      opacity: 0.25 ** (activeFloorIndex - index),
       walls: buildEffectiveWalls(floor.walls, floor.fixtures, baseUnitM)
     }))
     .filter((layer) => layer.walls.length > 0), [floors, activeFloorIndex, baseUnitM]);
@@ -868,6 +868,17 @@ export default function FloorPlanEditor() {
     clearSelections();
   }
 
+  const hiddenRoomCount = useMemo(
+    () => Object.values(roomMeta).filter((meta) => meta?.hidden).length,
+    [roomMeta]
+  );
+
+  function restoreHiddenRooms() {
+    setRoomMeta((current) => Object.fromEntries(
+      Object.entries(current).map(([key, meta]) => [key, meta?.hidden ? { ...meta, hidden: false } : meta])
+    ));
+  }
+
   function clearPlan() {
     setFloors([createEmptyPlanFloor(0)]);
     setActiveFloorIndex(0);
@@ -1008,7 +1019,7 @@ export default function FloorPlanEditor() {
   }
 
   return (
-    <section className="editor" onKeyDown={onKeyDown} tabIndex={0}>
+    <section className="editor" tabIndex={0}>
       <EditorPanel
         planName={planName}
         setPlanName={setPlanName}
@@ -1055,6 +1066,8 @@ export default function FloorPlanEditor() {
         updateBaseUnit={updateBaseUnit}
         wallThicknessByTypeM={wallThicknessByTypeM}
         updateWallThicknessM={updateWallThicknessM}
+        hiddenRoomCount={hiddenRoomCount}
+        restoreHiddenRooms={restoreHiddenRooms}
         wallsCount={walls.length}
         roomsCount={rooms.length}
         fixturesCount={fixtures.length}

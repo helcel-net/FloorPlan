@@ -62,6 +62,8 @@ export default function EditorPanel({
   updateBaseUnit,
   wallThicknessByTypeM,
   updateWallThicknessM,
+  hiddenRoomCount,
+  restoreHiddenRooms,
   wallsCount,
   roomsCount,
   fixturesCount,
@@ -339,6 +341,15 @@ export default function EditorPanel({
               ))}
             </select>
           </div>
+
+          {hiddenRoomCount > 0 && (
+            <div className="control-group">
+              <span>Deleted Rooms</span>
+              <button type="button" onClick={restoreHiddenRooms}>
+                Restore {hiddenRoomCount} hidden room{hiddenRoomCount === 1 ? '' : 's'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

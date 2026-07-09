@@ -21,6 +21,10 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -35,9 +39,16 @@ body {
 }
 
 .page-shell {
-  max-width: 1200px;
+  max-width: 1900px;
+  min-height: 100%;
   margin: 0 auto;
   padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  flex: 0 0 auto;
 }
 
 .hero h1 {
@@ -52,7 +63,10 @@ body {
 .editor {
   display: grid;
   grid-template-columns: 300px 1fr;
+  grid-template-rows: 1fr;
   gap: 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .panel {
@@ -61,6 +75,8 @@ body {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.9rem;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .panel h2 {
@@ -265,6 +281,9 @@ button:disabled {
 
 .canvas-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -359,8 +378,9 @@ button:disabled {
 }
 
 svg {
+  flex: 1 1 auto;
   width: 100%;
-  height: 72vh;
+  min-height: 0;
   background: #efefea;
 }
 
@@ -549,9 +569,10 @@ svg {
 @media (max-width: 900px) {
   .editor {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(360px, 60vh);
   }
 
-  svg {
-    height: 52vh;
+  .panel {
+    overflow-y: visible;
   }
 }
