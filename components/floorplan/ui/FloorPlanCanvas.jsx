@@ -269,19 +269,26 @@ export default function FloorPlanCanvas({
           const ny = ux;
 
           // Show the interior/clear span rather than the raw centerline
-          // length: at each end, if exactly one other wall shares that
-          // corner, shorten the shown dimension by half that wall's
-          // thickness (its face eats into this run). Ambiguous junctions
-          // (none or several walls sharing the vertex) fall back to the
-          // centerline point there, rather than guessing.
+          // length: at each end, inset by half the thickness of whichever
+          // wall(s) actually cross this one there (their face eats into
+          // this run). Walls that are merely collinear continuations of
+          // the same run (e.g. a straight wall split at a T-junction)
+          // don't bound the room and are ignored, so T-junctions and
+          // crosses inset correctly instead of only plain L corners.
           const vertexEps = 0.5;
           const insetAt = (vertex) => {
-            const others = walls.filter((w) => (
-              w.id !== wall.id
-              && (dist(w.start, vertex) < vertexEps || dist(w.end, vertex) < vertexEps)
-            ));
-            if (others.length !== 1) return 0;
-            return wallStyle(others[0]).width / 2;
+            const crossing = walls.filter((w) => {
+              if (w.id === wall.id) return false;
+              if (dist(w.start, vertex) >= vertexEps && dist(w.end, vertex) >= vertexEps) return false;
+              const wdx = w.end.x - w.start.x;
+              const wdy = w.end.y - w.start.y;
+              const wlen = Math.hypot(wdx, wdy);
+              if (wlen < EPS) return false;
+              const dot = Math.abs(((wdx / wlen) * ux) + ((wdy / wlen) * uy));
+              return dot < 0.99;
+            });
+            if (!crossing.length) return 0;
+            return Math.max(...crossing.map((w) => wallStyle(w).width / 2));
           };
           const startInset = Math.min(len / 2, insetAt(wall.start));
           const endInset = Math.min(len / 2, insetAt(wall.end));
