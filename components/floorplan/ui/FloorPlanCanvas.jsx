@@ -1,5 +1,6 @@
 import { EPS, GRID } from '../config/constants';
 import { dist, getSvgPoint, snapToGrid } from '../core/geometry';
+import { projectPointOnWall } from '../editor/utils';
 import FixtureLayer from './FixtureLayer';
 
 export default function FloorPlanCanvas({
@@ -241,10 +242,11 @@ export default function FloorPlanCanvas({
                 e.stopPropagation();
                 const svg = e.currentTarget.ownerSVGElement;
                 if (!svg) return;
-                const raw = getSvgPoint(e, svg);
-                const point = snapToGrid(raw.x, raw.y);
                 const baseWall = walls.find((w) => w.id === wall.sourceWallId);
                 if (!baseWall) return;
+                const raw = getSvgPoint(e, svg);
+                const onLine = projectPointOnWall(raw, baseWall);
+                const point = snapToGrid(onLine.x, onLine.y);
                 splitWallAtPoint(baseWall, point);
               }}
             />

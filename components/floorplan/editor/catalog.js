@@ -36,13 +36,21 @@ export const FURNITURE_PRESETS = {
     { id: 'coffee-table-120x60', label: 'Coffee Table 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
     { id: 'coffee-table-90x90', label: 'Coffee Table 900 x 900 mm (Usual)', widthM: 0.9, depthM: 0.9 },
     { id: 'storage-tv-console-180x45', label: 'TV Console 1800 x 450 mm (DIN)', widthM: 1.8, depthM: 0.45 },
+    { id: 'tv-55in-123x5', label: 'TV 55" (Wall-mounted) 1230 x 50 mm', widthM: 1.23, depthM: 0.05 },
     { id: 'living-usm-sofa-side-table-52x37', label: 'USM Sofa Side Table 523 x 373 mm', widthM: 0.523, depthM: 0.373 },
     { id: 'storage-bookshelf-90x30', label: 'Bookshelf 900 x 300 mm', widthM: 0.9, depthM: 0.3 },
     { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
     { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 },
     { id: 'rug-200x300', label: 'Area Rug 2000 x 3000 mm', widthM: 2.0, depthM: 3.0 },
     { id: 'chair-armchair-85x85', label: 'Armchair 850 x 850 mm', widthM: 0.85, depthM: 0.85 },
-    { id: 'ottoman-60x60', label: 'Ottoman 600 x 600 mm', widthM: 0.6, depthM: 0.6 }
+    { id: 'ottoman-60x60', label: 'Ottoman 600 x 600 mm', widthM: 0.6, depthM: 0.6 },
+    { id: 'tatami-90x180', label: 'Tatami Mat 900 x 1800 mm (1 Jō)', widthM: 0.9, depthM: 1.8 },
+    { id: 'tatami-45x180', label: 'Half Tatami 450 x 1800 mm', widthM: 0.45, depthM: 1.8 },
+    { id: 'zabuton-55x59', label: 'Zabuton Floor Cushion 550 x 590 mm', widthM: 0.55, depthM: 0.59 },
+    { id: 'kotatsu-80x80', label: 'Kotatsu 800 x 800 mm', widthM: 0.8, depthM: 0.8 },
+    { id: 'kotatsu-120x80', label: 'Kotatsu 1200 x 800 mm', widthM: 1.2, depthM: 0.8 },
+    { id: 'byobu-150x30', label: 'Byōbu Folding Screen 1500 x 300 mm', widthM: 1.5, depthM: 0.3 },
+    { id: 'shoji-screen-90x3', label: 'Shoji Sliding Screen 900 x 30 mm', widthM: 0.9, depthM: 0.03 }
   ],
   lighting: [
     { id: 'lamp-tolomeo-mini-35', label: 'Artemide Tolomeo Mini 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
@@ -58,7 +66,8 @@ export const FURNITURE_PRESETS = {
     { id: 'chair-dining-48x52', label: 'Dining Chair 480 x 520 mm (DIN)', widthM: 0.48, depthM: 0.52 },
     { id: 'chair-45x45', label: 'Chair 450 x 450 mm (DIN)', widthM: 0.45, depthM: 0.45 },
     { id: 'stool-bar-35', label: 'Bar Stool 350 x 350 mm', widthM: 0.35, depthM: 0.35 },
-    { id: 'storage-sideboard-160x45', label: 'Sideboard 1600 x 450 mm', widthM: 1.6, depthM: 0.45 }
+    { id: 'storage-sideboard-160x45', label: 'Sideboard 1600 x 450 mm', widthM: 1.6, depthM: 0.45 },
+    { id: 'chabudai-round-90', label: 'Chabudai Round Table Ø900 mm', widthM: 0.9, depthM: 0.9 }
   ],
   storage: [
     { id: 'storage-elfa-45x40', label: 'ELFA 450 x 400 mm', widthM: 0.45, depthM: 0.4 },
@@ -88,6 +97,7 @@ export const FURNITURE_PRESETS = {
     { id: 'plant-raisedbed-180x90', label: 'Raised Bed 1800 x 900 mm', widthM: 1.8, depthM: 0.9 }
   ],
   kitchen: [
+    { id: 'appliance-kitchen-base-30', label: 'Base Unit 300 x 600 mm (Narrow)', widthM: 0.3, depthM: 0.6 },
     { id: 'appliance-kitchen-base-60', label: 'Base Unit 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
     { id: 'appliance-kitchen-base-120', label: 'Base Unit 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
     { id: 'appliance-fridge-60x65', label: 'Fridge 600 x 650 mm (DIN)', widthM: 0.6, depthM: 0.65 },
@@ -99,7 +109,9 @@ export const FURNITURE_PRESETS = {
     { id: 'appliance-oven-60x60', label: 'Oven 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
     { id: 'appliance-stove-60x60', label: 'Stove 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
     { id: 'appliance-bins-60x60', label: 'Bins 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
-    { id: 'appliance-kitchen-base-island-160x90', label: 'Kitchen Island 1600 x 900 mm', widthM: 1.6, depthM: 0.9 }
+    { id: 'appliance-kitchen-base-island-160x90', label: 'Kitchen Island 1600 x 900 mm', widthM: 1.6, depthM: 0.9 },
+    { id: 'appliance-microwave-45x40', label: 'Microwave 450 x 400 mm', widthM: 0.45, depthM: 0.4 },
+    { id: 'appliance-range-hood-60x60', label: 'Range Hood 600 x 600 mm', widthM: 0.6, depthM: 0.6 }
   ],
   laundry: [
     { id: 'appliance-washer-60x60', label: 'Washer 600 x 600 mm (DIN)', widthM: 0.6, depthM: 0.6 },
@@ -114,7 +126,10 @@ export const FURNITURE_PRESETS = {
     { id: 'shower-90x90', label: 'Shower 900 x 900 mm (DIN)', widthM: 0.9, depthM: 0.9 },
     { id: 'shower-120x90', label: 'Walk-in Shower 1200 x 900 mm (DIN)', widthM: 1.2, depthM: 0.9 },
     { id: 'bathtub-160x70', label: '1600 x 700 mm (DIN)', widthM: 1.6, depthM: 0.7 },
-    { id: 'bathtub-180x80', label: '1800 x 800 mm (DIN)', widthM: 1.8, depthM: 0.8 }
+    { id: 'bathtub-180x80', label: '1800 x 800 mm (DIN)', widthM: 1.8, depthM: 0.8 },
+    { id: 'bathtub-ofuro-80x80', label: 'Ofuro Soaking Tub 800 x 800 mm', widthM: 0.8, depthM: 0.8 },
+    { id: 'bathtub-ofuro-90x70', label: 'Ofuro Soaking Tub 900 x 700 mm', widthM: 0.9, depthM: 0.7 },
+    { id: 'wash-station-60x60', label: 'Washing Station (Faucet + Tabouret) 600 x 600 mm', widthM: 0.6, depthM: 0.6 }
   ],
   bedroom: [
     { id: 'bed-90x200', label: '900 x 2000 mm (DIN)', widthM: 0.9, depthM: 2.0 },
@@ -124,22 +139,32 @@ export const FURNITURE_PRESETS = {
     { id: 'nightstand-60x45', label: 'Nightstand 600 x 450 mm (DIN)', widthM: 0.6, depthM: 0.45 },
     { id: 'closet-120x60', label: 'Wardrobe 1200 x 600 mm (DIN)', widthM: 1.2, depthM: 0.6 },
     { id: 'closet-180x60', label: 'Wardrobe 1800 x 600 mm (DIN)', widthM: 1.8, depthM: 0.6 },
+    { id: 'tatami-90x180', label: 'Tatami Mat 900 x 1800 mm (1 Jō)', widthM: 0.9, depthM: 1.8 },
+    { id: 'tatami-45x180', label: 'Half Tatami 450 x 1800 mm', widthM: 0.45, depthM: 1.8 },
+    { id: 'futon-100x200', label: 'Futon (Single) 1000 x 2000 mm', widthM: 1.0, depthM: 2.0 },
+    { id: 'futon-140x200', label: 'Futon (Double) 1400 x 2000 mm', widthM: 1.4, depthM: 2.0 },
     { id: 'mirror-100x5', label: 'Mirror 1000 x 50 mm', widthM: 1.0, depthM: 0.05 },
     { id: 'rug-160x230', label: 'Area Rug 1600 x 2300 mm', widthM: 1.6, depthM: 2.3 },
-    { id: 'storage-dresser-100x50', label: 'Dresser 1000 x 500 mm', widthM: 1.0, depthM: 0.5 }
+    { id: 'storage-dresser-100x50', label: 'Dresser 1000 x 500 mm', widthM: 1.0, depthM: 0.5 },
+    { id: 'crib-70x130', label: 'Crib 700 x 1300 mm', widthM: 0.7, depthM: 1.3 },
+    { id: 'changing-table-80x50', label: 'Changing Table 800 x 500 mm', widthM: 0.8, depthM: 0.5 }
   ],
   office: [
     { id: 'office-desk-140x70', label: 'PC Desk 1400 x 700 mm (DIN)', widthM: 1.4, depthM: 0.7 },
     { id: 'office-desk-180x80', label: 'PC Desk 1800 x 800 mm (DIN)', widthM: 1.8, depthM: 0.8 },
     { id: 'office-chair-hag-70x70', label: 'Office Chair (HAG style) 700 x 700 mm', widthM: 0.7, depthM: 0.7 },
     { id: 'office-projector-35x30', label: 'Projector 350 x 300 mm', widthM: 0.35, depthM: 0.3 },
+    { id: 'projector-screen-221x5', label: 'Projector Screen 100" (16:9, Wall-mounted) 2210 x 50 mm', widthM: 2.21, depthM: 0.05 },
     { id: 'office-usm-corpus-52x37', label: 'USM Haller Office Corpus 523 x 373 mm', widthM: 0.523, depthM: 0.373 },
     { id: 'office-usm-corpus-77x37', label: 'USM Haller Office Corpus 773 x 373 mm', widthM: 0.773, depthM: 0.373 },
     { id: 'office-usm-corpus-102x37', label: 'USM Haller Office Corpus 1023 x 373 mm', widthM: 1.023, depthM: 0.373 }
   ],
   stairs: [
     { id: 'stairs-straight-100x280', label: 'Straight Stair 1000 x 2800 mm', widthM: 1.0, depthM: 2.8 },
-    { id: 'stairs-straight-90x240', label: 'Straight Stair 900 x 2400 mm', widthM: 0.9, depthM: 2.4 }
+    { id: 'stairs-straight-90x240', label: 'Straight Stair 900 x 2400 mm', widthM: 0.9, depthM: 2.4 },
+    { id: 'stairs-curved-l-140x140', label: 'Curved Stair L 1400 x 1400 mm', widthM: 1.4, depthM: 1.4 },
+    { id: 'stairs-curved-r-140x140', label: 'Curved Stair R 1400 x 1400 mm', widthM: 1.4, depthM: 1.4 },
+    { id: 'stairs-spiral-140', label: 'Spiral Staircase Ø1400 mm', widthM: 1.4, depthM: 1.4 }
   ],
   garden: [
     { id: 'table-garden-160x90', label: 'Garden Table 1600 x 900 mm', widthM: 1.6, depthM: 0.9 },
@@ -155,7 +180,9 @@ export const FURNITURE_PRESETS = {
     { id: 'electric-outlet-10x10', label: 'Outlet 100 x 100 mm', widthM: 0.1, depthM: 0.1 },
     { id: 'electric-switch-8x8', label: 'Light Switch 80 x 80 mm', widthM: 0.08, depthM: 0.08 },
     { id: 'electric-panel-40x15', label: 'Electrical Panel 400 x 150 mm', widthM: 0.4, depthM: 0.15 },
-    { id: 'electric-solar-inverter-40x30', label: 'Solar Inverter 400 x 300 mm', widthM: 0.4, depthM: 0.3 }
+    { id: 'electric-solar-inverter-40x30', label: 'Solar Inverter 400 x 300 mm', widthM: 0.4, depthM: 0.3 },
+    { id: 'solar-panel-vertical-100x170', label: 'Solar Panel (Vertical) 1000 x 1700 mm', widthM: 1.0, depthM: 1.7 },
+    { id: 'solar-panel-inclined-100x170', label: 'Solar Panel (Inclined) 1000 x 1700 mm', widthM: 1.0, depthM: 1.7 }
   ],
   water: [
     { id: 'water-valve-10x10', label: 'Shutoff Valve 100 x 100 mm', widthM: 0.1, depthM: 0.1 },
