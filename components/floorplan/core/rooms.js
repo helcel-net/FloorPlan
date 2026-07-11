@@ -343,7 +343,8 @@ export function buildRoomRegions(walls, _wallThicknessByTypeM, baseUnitM) {
       areaM2,
       widthM,
       heightM,
-      wallIds: face.wallIds
+      wallIds: face.wallIds,
+      vertices
     });
   }
 

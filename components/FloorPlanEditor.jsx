@@ -46,6 +46,7 @@ import {
 } from './floorplan/editor/hitTest';
 import { buildDefaultCamera, buildFittedCamera } from './floorplan/editor/camera';
 import { capturePlanPreview, exportSvgAsPng } from './floorplan/editor/export';
+import { exportPlan as exportPlanToFile, importPlanFromFile } from './floorplan/editor/exportBlender';
 import {
   buildPlacedDoorFixture,
   buildPlacedFurnitureFixture,
@@ -1018,6 +1019,30 @@ export default function FloorPlanEditor() {
     exportSvgAsPng(svgRef.current, planName || 'floor-plan');
   }
 
+  function exportPlan() {
+    if (isPlanEmpty()) {
+      window.alert('This plan is empty, so there is nothing to export yet. Draw at least one wall first.');
+      return;
+    }
+    exportPlanToFile({
+      name: planName,
+      floors,
+      baseUnitM,
+      wallThicknessByTypeM,
+      defaultFloor
+    });
+  }
+
+  function importPlan(file) {
+    if (!file) return;
+    importPlanFromFile(file)
+      .then((entry) => loadProjectEntry(entry))
+      .catch((error) => {
+        console.warn('Failed to import plan:', error);
+        window.alert('Could not import that file - it doesn\'t look like a valid floor plan export.');
+      });
+  }
+
   return (
     <section className="editor" tabIndex={0}>
       <EditorPanel
@@ -1073,6 +1098,8 @@ export default function FloorPlanEditor() {
         fixturesCount={fixtures.length}
         totalRoomAreaM2={totalRoomAreaM2}
         boundingBoxAreaM2={boundingBoxAreaM2}
+        exportPlan={exportPlan}
+        importPlan={importPlan}
       />
 
       <FloorPlanCanvas

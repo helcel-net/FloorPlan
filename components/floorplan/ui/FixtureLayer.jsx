@@ -1,6 +1,11 @@
 import { GRID } from '../config/constants';
 import { isWallOpeningFixture, normalizeFurnitureType } from '../editor/utils';
 
+// DIN 18065 comfort formula (2*riser + going = 590-650mm) centers on a
+// ~280mm going for domestic stairs; stair tread counts are derived from it
+// so drawn treads stay a realistic size across any stair preset dimensions.
+const DIN_GOING_M = 0.28;
+
 export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtureId, renderMode }) {
   const isTechnical = renderMode === 'technical' || renderMode === 'utilities';
   const isUtilitiesMode = renderMode === 'utilities';
@@ -162,7 +167,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
     const isCeilingLight = presetIdValue.startsWith('ceiling-light-');
     const isOfficeChair = furnitureTypeValue === 'office' && presetIdValue.includes('chair');
     const isArmchair = presetIdValue.includes('armchair');
-    const isChair = presetIdValue.includes('chair') && !isOfficeChair;
+    const isChair = presetIdValue.includes('chair') && !isOfficeChair && !isArmchair;
     const isSofa = presetIdValue.startsWith('sofa-');
     const isFireplace = presetIdValue.startsWith('storage-fireplace-');
     const isBench = presetIdValue.includes('bench');
@@ -278,6 +283,10 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.22} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.6} />
         )}
 
+        {isStool && (
+          <circle cx={fixture.position.x} cy={fixture.position.y} r={Math.min(widthPx, depthPx) * 0.34} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.55} />
+        )}
+
         {isParasol && (() => {
           const r = Math.min(widthPx, depthPx) * 0.46;
           const ribCount = 8;
@@ -346,12 +355,17 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         {isOttoman && (() => {
           const cx = fixture.position.x;
           const cy = fixture.position.y;
-          const dx = widthPx * 0.24;
-          const dy = depthPx * 0.24;
+          const insetX = left + widthPx * 0.14;
+          const insetY = top + depthPx * 0.14;
+          const insetW = widthPx * 0.72;
+          const insetH = depthPx * 0.72;
+          const buttonR = Math.max(1.2, Math.min(widthPx, depthPx) * 0.05);
           return (
             <>
-              <polygon points={`${cx},${cy - dy} ${cx + dx},${cy} ${cx},${cy + dy} ${cx - dx},${cy}`} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.4} />
-              <circle cx={cx} cy={cy} r={Math.min(widthPx, depthPx) * 0.06} fill="none" stroke={strokeColor} strokeWidth={0.9} opacity={0.5} />
+              <rect x={insetX} y={insetY} width={insetW} height={insetH} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.4} rx={Math.min(insetW, insetH) * 0.14} />
+              <line x1={insetX} y1={insetY} x2={insetX + insetW} y2={insetY + insetH} stroke={strokeColor} strokeWidth={0.8} opacity={0.35} />
+              <line x1={insetX + insetW} y1={insetY} x2={insetX} y2={insetY + insetH} stroke={strokeColor} strokeWidth={0.8} opacity={0.35} />
+              <circle cx={cx} cy={cy} r={buttonR} fill="none" stroke={strokeColor} strokeWidth={0.9} opacity={0.6} />
             </>
           );
         })()}
@@ -385,23 +399,37 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         )}
 
         {isSofa && !isChaise && (() => {
-          const armWidth = Math.min(widthPx * 0.14, depthPx * 0.5);
-          const seatLeft = left + armWidth;
-          const seatRight = left + widthPx - armWidth;
+          const armWidth = Math.max(6, Math.min(widthPx * 0.16, depthPx * 0.55));
+          const armRadius = armWidth * 0.55;
+          const backDepth = Math.max(6, depthPx * 0.22);
+          const seatLeft = left + armWidth + 2;
+          const seatRight = left + widthPx - armWidth - 2;
+          const seatTop = top + backDepth + 3;
+          const seatBottom = top + depthPx - 3;
           const seatCount = Math.max(2, Math.round((Number(fixture.widthM) || 1.8) / 0.75));
-          const seams = [];
-          for (let i = 1; i < seatCount; i += 1) {
-            const x = seatLeft + ((seatRight - seatLeft) * i) / seatCount;
-            seams.push(
-              <line key={`seat-${i}`} x1={x} y1={top + depthPx * 0.22} x2={x} y2={top + depthPx * 0.94} stroke={strokeColor} strokeWidth={0.9} opacity={0.3} />
-            );
-          }
+          const seatWidth = (seatRight - seatLeft) / seatCount;
+          const cushionGap = Math.min(3, seatWidth * 0.06);
+          const cushionRadius = Math.min(6, seatWidth * 0.12);
+          const cushions = Array.from({ length: seatCount }).map((_, i) => (
+            <rect
+              key={`cushion-${i}`}
+              x={seatLeft + i * seatWidth + cushionGap / 2}
+              y={seatTop}
+              width={Math.max(0, seatWidth - cushionGap)}
+              height={Math.max(0, seatBottom - seatTop)}
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth={0.9}
+              opacity={0.35}
+              rx={cushionRadius}
+            />
+          ));
           return (
             <>
-              <rect x={left} y={top} width={armWidth} height={depthPx} fill={baseFill} stroke={strokeColor} strokeWidth={1.3} rx={armWidth * 0.5} />
-              <rect x={left + widthPx - armWidth} y={top} width={armWidth} height={depthPx} fill={baseFill} stroke={strokeColor} strokeWidth={1.3} rx={armWidth * 0.5} />
-              <line x1={seatLeft} y1={top + depthPx * 0.14} x2={seatRight} y2={top + depthPx * 0.14} stroke={strokeColor} strokeWidth={1.3} opacity={0.55} />
-              {seams}
+              <rect x={left} y={top} width={armWidth} height={depthPx} fill={baseFill} stroke={strokeColor} strokeWidth={1.3} rx={armRadius} />
+              <rect x={left + widthPx - armWidth} y={top} width={armWidth} height={depthPx} fill={baseFill} stroke={strokeColor} strokeWidth={1.3} rx={armRadius} />
+              <rect x={seatLeft} y={top + 2} width={Math.max(0, seatRight - seatLeft)} height={backDepth} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={Math.min(8, backDepth * 0.5)} opacity={0.85} />
+              {cushions}
             </>
           );
         })()}
@@ -413,25 +441,30 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           const outline = chaiseOnRight
             ? `${left},${top} ${left + widthPx},${top} ${left + widthPx},${top + depthPx} ${innerX},${top + depthPx} ${innerX},${top + seatDepth} ${left},${top + seatDepth}`
             : `${left},${top} ${left + widthPx},${top} ${left + widthPx},${top + seatDepth} ${innerX},${top + seatDepth} ${innerX},${top + depthPx} ${left},${top + depthPx}`;
-          const armWidth = Math.min(widthPx * 0.14, depthPx * 0.3);
+          const armWidth = Math.min(widthPx * 0.14, depthPx * 0.32);
+          const armRadius = armWidth * 0.55;
           const armX = chaiseOnRight ? left + widthPx - armWidth : left;
+          const backDepth = Math.max(5, seatDepth * 0.22);
+          const backX = chaiseOnRight ? left : left + armWidth;
+          const backWidth = (chaiseOnRight ? left + widthPx - armWidth : left + widthPx) - backX;
 
           return (
             <>
               <polygon points={outline} fill={baseFill} stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} strokeLinejoin="round" />
-              <rect x={armX} y={top} width={armWidth} height={depthPx} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={armWidth * 0.5} />
-              <line x1={left + widthPx * 0.08} y1={top + seatDepth * 0.5} x2={(chaiseOnRight ? innerX : left + widthPx) - widthPx * 0.04} y2={top + seatDepth * 0.5} stroke={strokeColor} strokeWidth={1.1} opacity={0.5} />
+              <rect x={armX} y={top} width={armWidth} height={depthPx} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={armRadius} />
+              <rect x={backX} y={top + 2} width={Math.max(0, backWidth)} height={backDepth} fill={baseFill} stroke={strokeColor} strokeWidth={1.1} rx={Math.min(7, backDepth * 0.5)} opacity={0.85} />
+              <line x1={innerX} y1={top + backDepth + 4} x2={innerX} y2={top + depthPx - 4} stroke={strokeColor} strokeWidth={1} opacity={0.45} />
             </>
           );
         })()}
 
-        {presetIdValue.includes('table') && (() => {
+        {presetIdValue.includes('table') && !isChangingTable && (() => {
           const x0 = left + widthPx * 0.1;
           const y0 = top + depthPx * 0.1;
           const w = widthPx * 0.8;
           const h = depthPx * 0.8;
           if (!presetIdValue.includes('garden')) {
-            return <rect x={x0} y={y0} width={w} height={h} fill="none" stroke={strokeColor} strokeWidth={1} rx={6} opacity={0.5} />;
+            return <rect x={x0} y={y0} width={w} height={h} fill="none" stroke={strokeColor} strokeWidth={1.2} rx={6} opacity={0.8} />;
           }
           const meshCount = 5;
           const mesh = [];
@@ -443,7 +476,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           }
           return (
             <>
-              <rect x={x0} y={y0} width={w} height={h} fill="none" stroke={strokeColor} strokeWidth={1} rx={6} opacity={0.5} />
+              <rect x={x0} y={y0} width={w} height={h} fill="none" stroke={strokeColor} strokeWidth={1.2} rx={6} opacity={0.8} />
               {mesh}
             </>
           );
@@ -500,12 +533,6 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
               stroke={strokeColor}
               strokeWidth={1.4}
             />
-            {isArmchair && (
-              <>
-                <rect x={left + widthPx * 0.02} y={top + depthPx * 0.3} width={widthPx * 0.12} height={depthPx * 0.62} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={widthPx * 0.05} />
-                <rect x={left + widthPx * 0.86} y={top + depthPx * 0.3} width={widthPx * 0.12} height={depthPx * 0.62} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={widthPx * 0.05} />
-              </>
-            )}
             {presetIdValue.includes('garden') && (() => {
               const slatCount = 3;
               const slats = [];
@@ -518,38 +545,59 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {isOfficeChair && (() => {
-          const r = Math.min(widthPx, depthPx) / 2;
-          const seatR = r * 0.66;
-          const baseR = r * 0.24;
-          const legCount = 5;
-          const legs = Array.from({ length: legCount }).map((_, i) => {
-            const angle = (i / legCount) * Math.PI * 2 - Math.PI / 2;
-            return (
-              <line
-                key={`leg-${i}`}
-                x1={fixture.position.x}
-                y1={fixture.position.y}
-                x2={fixture.position.x + Math.cos(angle) * baseR}
-                y2={fixture.position.y + Math.sin(angle) * baseR}
-                stroke={strokeColor}
-                strokeWidth={1.1}
-                opacity={0.6}
-              />
-            );
-          });
+        {isArmchair && (() => {
+          const armWidth = Math.max(5, widthPx * 0.15);
+          const armRadius = armWidth * 0.55;
+          const backDepth = depthPx * 0.24;
+          const seatX = left + armWidth + 2;
+          const seatWidth = Math.max(0, widthPx - (armWidth + 2) * 2);
+          const seatTop = top + backDepth + 2;
           return (
             <>
-              <circle cx={fixture.position.x} cy={fixture.position.y} r={r} fill={baseFill} stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} />
-              <circle cx={fixture.position.x} cy={fixture.position.y} r={seatR} fill="none" stroke={strokeColor} strokeWidth={1.2} opacity={0.7} />
+              <rect x={left} y={top + depthPx * 0.1} width={armWidth} height={depthPx * 0.82} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={armRadius} />
+              <rect x={left + widthPx - armWidth} y={top + depthPx * 0.1} width={armWidth} height={depthPx * 0.82} fill={baseFill} stroke={strokeColor} strokeWidth={1.2} rx={armRadius} />
               <path
-                d={`M ${fixture.position.x - seatR * 0.7} ${fixture.position.y - seatR * 0.35} Q ${fixture.position.x} ${fixture.position.y - seatR * 1.25} ${fixture.position.x + seatR * 0.7} ${fixture.position.y - seatR * 0.35}`}
+                d={`M ${seatX} ${top + backDepth} Q ${fixture.position.x} ${top} ${seatX + seatWidth} ${top + backDepth}`}
                 fill="none"
                 stroke={strokeColor}
-                strokeWidth={1.4}
+                strokeWidth={1.6}
               />
+              <rect x={seatX + seatWidth * 0.06} y={seatTop} width={seatWidth * 0.88} height={Math.max(0, top + depthPx - 3 - seatTop)} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.4} rx={cornerR} />
+            </>
+          );
+        })()}
+
+        {isOfficeChair && (() => {
+          // A 5-star swivel base with casters (the real defining silhouette
+          // of a task chair from above), a seat circle offset slightly
+          // forward, and a distinct backrest block behind it. The previous
+          // version clustered a tiny star + a floating backrest arc near
+          // the center, which read as a smiley face rather than a chair.
+          const cx = fixture.position.x;
+          const cy = fixture.position.y;
+          const r = Math.min(widthPx, depthPx) / 2;
+          const baseR = r * 0.88;
+          const casterR = Math.max(1.2, r * 0.07);
+          const legCount = 5;
+          const legs = [];
+          for (let i = 0; i < legCount; i += 1) {
+            const angle = (i / legCount) * Math.PI * 2 - Math.PI / 2;
+            const tipX = cx + Math.cos(angle) * baseR;
+            const tipY = cy + Math.sin(angle) * baseR;
+            legs.push(<line key={`leg-${i}`} x1={cx} y1={cy} x2={tipX} y2={tipY} stroke={strokeColor} strokeWidth={1.1} opacity={0.6} />);
+            legs.push(<circle key={`caster-${i}`} cx={tipX} cy={tipY} r={casterR} fill="none" stroke={strokeColor} strokeWidth={0.9} opacity={0.7} />);
+          }
+          const seatR = r * 0.5;
+          const seatCy = cy + seatR * 0.25;
+          const backW = seatR * 1.7;
+          const backH = seatR * 0.9;
+          const backCy = cy - seatR * 0.85;
+          return (
+            <>
               {legs}
-              <circle cx={fixture.position.x} cy={fixture.position.y} r={2} fill={strokeColor} />
+              <rect x={cx - backW / 2} y={backCy - backH / 2} width={backW} height={backH} rx={backH * 0.4} fill={baseFill} stroke={strokeColor} strokeWidth={1.3} />
+              <circle cx={cx} cy={seatCy} r={seatR} fill={baseFill} stroke={strokeColor} strokeWidth={isSelected ? 3 : 2} />
+              <circle cx={cx} cy={cy} r={1.8} fill={strokeColor} />
             </>
           );
         })()}
@@ -676,13 +724,31 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {presetIdValue.startsWith('closet-') && (
-          <>
-            <line x1={fixture.position.x} y1={top + depthPx * 0.1} x2={fixture.position.x} y2={top + depthPx * 0.9} stroke={strokeColor} strokeWidth={1.4} />
-            <circle cx={fixture.position.x - widthPx * 0.08} cy={fixture.position.y} r={1.6} fill={strokeColor} />
-            <circle cx={fixture.position.x + widthPx * 0.08} cy={fixture.position.y} r={1.6} fill={strokeColor} />
-          </>
-        )}
+        {presetIdValue.startsWith('closet-') && (() => {
+          const wM = Number(fixture.widthM) || 1.2;
+          const doorCount = Math.max(2, Math.min(4, Math.round(wM / 0.6)));
+          const slotW = widthPx / doorCount;
+          const panels = [];
+          const handles = [];
+          for (let i = 0; i < doorCount; i += 1) {
+            const doorX = left + i * slotW + slotW * 0.05;
+            const doorW = slotW * 0.9;
+            panels.push(
+              <rect key={`closet-panel-${i}`} x={doorX} y={top + depthPx * 0.08} width={doorW} height={depthPx * 0.84} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.6} rx={2} />
+            );
+            const handleAtRight = i % 2 === 0;
+            const handleX = handleAtRight ? doorX + doorW * 0.9 : doorX + doorW * 0.1;
+            handles.push(
+              <line key={`closet-handle-${i}`} x1={handleX} y1={top + depthPx * 0.4} x2={handleX} y2={top + depthPx * 0.6} stroke={strokeColor} strokeWidth={1.2} opacity={0.8} />
+            );
+          }
+          return (
+            <>
+              {panels}
+              {handles}
+            </>
+          );
+        })()}
 
         {isTatami && (() => {
           const portrait = depthPx >= widthPx;
@@ -854,13 +920,30 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {isBath && presetIdValue.startsWith('bathtub-') && !isOfuro && (
-          <>
-            <rect x={left + widthPx * 0.08} y={top + depthPx * 0.12} width={widthPx * 0.84} height={depthPx * 0.76} fill="none" stroke={strokeColor} strokeWidth={1.6} rx={10} />
-            <line x1={left + widthPx * 0.2} y1={top + depthPx * 0.2} x2={left + widthPx * 0.2} y2={top + depthPx * 0.8} stroke={strokeColor} strokeWidth={1.0} opacity={0.7} />
-            <circle cx={left + widthPx * 0.17} cy={top + depthPx * 0.24} r={Math.max(1.5, Math.min(widthPx, depthPx) * 0.04)} fill={strokeColor} />
-          </>
-        )}
+        {isBath && presetIdValue.startsWith('bathtub-') && !isOfuro && (() => {
+          const x0 = left + widthPx * 0.08;
+          const x1 = left + widthPx * 0.92;
+          const y0 = top + depthPx * 0.12;
+          const y1 = top + depthPx * 0.88;
+          const rHead = Math.min(depthPx, widthPx) * 0.32;
+          const rFoot = Math.min(depthPx, widthPx) * 0.08;
+          const outline = `M ${x0 + rHead} ${y0}
+            L ${x1 - rFoot} ${y0}
+            A ${rFoot} ${rFoot} 0 0 1 ${x1} ${y0 + rFoot}
+            L ${x1} ${y1 - rFoot}
+            A ${rFoot} ${rFoot} 0 0 1 ${x1 - rFoot} ${y1}
+            L ${x0 + rHead} ${y1}
+            A ${rHead} ${rHead} 0 0 1 ${x0} ${y1 - rHead}
+            L ${x0} ${y0 + rHead}
+            A ${rHead} ${rHead} 0 0 1 ${x0 + rHead} ${y0} Z`;
+          return (
+            <>
+              <path d={outline} fill="none" stroke={strokeColor} strokeWidth={1.6} strokeLinejoin="round" />
+              <line x1={left + widthPx * 0.22} y1={top + depthPx * 0.22} x2={left + widthPx * 0.22} y2={top + depthPx * 0.78} stroke={strokeColor} strokeWidth={1.0} opacity={0.7} />
+              <circle cx={left + widthPx * 0.85} cy={fixture.position.y} r={Math.max(1.5, Math.min(widthPx, depthPx) * 0.04)} fill={strokeColor} />
+            </>
+          );
+        })()}
 
         {isBath && isOfuro && (
           <>
@@ -871,18 +954,33 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           </>
         )}
 
-        {isBath && presetIdValue.startsWith('toilet-') && (
-          <>
-            <ellipse cx={fixture.position.x} cy={top + depthPx * 0.66} rx={widthPx * 0.28} ry={depthPx * 0.28} fill="none" stroke={strokeColor} strokeWidth={1.6} />
-            <ellipse cx={fixture.position.x} cy={top + depthPx * 0.68} rx={widthPx * 0.18} ry={depthPx * 0.19} fill={baseFill} stroke={strokeColor} strokeWidth={1} opacity={0.7} />
-            <rect x={left + widthPx * 0.25} y={top + depthPx * 0.1} width={widthPx * 0.5} height={depthPx * 0.2} fill="none" stroke={strokeColor} strokeWidth={1.4} rx={3} />
-            <circle cx={left + widthPx * 0.36} cy={top + depthPx * 0.32} r={1.2} fill={strokeColor} opacity={0.7} />
-            <circle cx={left + widthPx * 0.64} cy={top + depthPx * 0.32} r={1.2} fill={strokeColor} opacity={0.7} />
-            {presetIdValue.includes('japanese') && (
-              <circle cx={left + widthPx * 0.86} cy={top + depthPx * 0.2} r={Math.max(2, widthPx * 0.05)} fill={strokeColor} />
-            )}
-          </>
-        )}
+        {isBath && presetIdValue.startsWith('toilet-') && (() => {
+          // Tank sits flush against the wall (back edge) and is drawn wide
+          // and filled so it reads as a distinct solid block; the bowl
+          // proportions are fixed (not derived from the fixture's own
+          // width/depth ratio) since a 40x70 footprint stretched that way
+          // used to produce a tall, narrow "pill" instead of a bowl.
+          const tankW = widthPx * 0.8;
+          const tankH = depthPx * 0.2;
+          const tankX = left + widthPx * 0.1;
+          const gap = depthPx * 0.02;
+          const bowlRx = widthPx * 0.36;
+          const bowlRy = depthPx * 0.3;
+          const bowlCy = top + tankH + gap + bowlRy;
+          const hingeY = top + tankH + gap;
+          return (
+            <>
+              <rect x={tankX} y={top} width={tankW} height={tankH} fill={baseFill} stroke={strokeColor} strokeWidth={1.4} rx={2} />
+              <circle cx={fixture.position.x - widthPx * 0.14} cy={hingeY} r={1.2} fill={strokeColor} opacity={0.7} />
+              <circle cx={fixture.position.x + widthPx * 0.14} cy={hingeY} r={1.2} fill={strokeColor} opacity={0.7} />
+              <ellipse cx={fixture.position.x} cy={bowlCy} rx={bowlRx} ry={bowlRy} fill="none" stroke={strokeColor} strokeWidth={1.6} />
+              <ellipse cx={fixture.position.x} cy={bowlCy + bowlRy * 0.05} rx={bowlRx * 0.68} ry={bowlRy * 0.72} fill={baseFill} stroke={strokeColor} strokeWidth={1} opacity={0.7} />
+              {presetIdValue.includes('japanese') && (
+                <circle cx={left + widthPx * 0.86} cy={top + depthPx * 0.12} r={Math.max(2, widthPx * 0.05)} fill={strokeColor} />
+              )}
+            </>
+          );
+        })()}
 
         {isBath && presetIdValue.startsWith('bath-sink-small-') && (
           <>
@@ -929,25 +1027,35 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         {(isKitchen || isLaundry) && (
           <>
             {presetIdValue.includes('kitchen-base') && (() => {
+              const isIsland = presetIdValue.includes('island');
               const wM = Number(fixture.widthM) || 0.6;
               const doorCount = wM >= 0.9 ? 2 : 1;
-              const slotW = widthPx * 0.84 / doorCount;
+              // Islands are freestanding, so the countertop overhangs the
+              // cabinet body on every side (not just the front); a wall run
+              // only shows that overhang along the room-facing edge.
+              const vMargin = isIsland ? depthPx * 0.14 : depthPx * 0.08;
+              const margin = widthPx * (isIsland ? 0.08 : 0.05);
+              const slotW = (widthPx - margin * 2) / doorCount;
               const doors = [];
               const handles = [];
               for (let i = 0; i < doorCount; i += 1) {
-                const doorX = left + widthPx * 0.08 + i * slotW;
+                const doorX = left + margin + i * slotW + slotW * 0.04;
                 const doorW = slotW * 0.92;
                 doors.push(
-                  <rect key={`door-${i}`} x={doorX} y={top + depthPx * 0.18} width={doorW} height={depthPx * 0.74} fill="none" stroke={strokeColor} strokeWidth={0.9} opacity={0.55} rx={2} />
+                  <rect key={`door-${i}`} x={doorX} y={top + vMargin} width={doorW} height={depthPx - vMargin * 2} fill="none" stroke={strokeColor} strokeWidth={0.9} opacity={0.55} rx={2} />
                 );
                 const handleX = doorCount === 1 ? doorX + doorW * 0.85 : (i === 0 ? doorX + doorW * 0.88 : doorX + doorW * 0.12);
                 handles.push(
-                  <line key={`handle-${i}`} x1={handleX} y1={top + depthPx * 0.28} x2={handleX} y2={top + depthPx * 0.42} stroke={strokeColor} strokeWidth={1.2} opacity={0.8} />
+                  <line key={`handle-${i}`} x1={handleX} y1={top + depthPx * 0.3} x2={handleX} y2={top + depthPx * 0.6} stroke={strokeColor} strokeWidth={1.2} opacity={0.8} />
                 );
               }
               return (
                 <>
-                  <line x1={left} y1={top + depthPx * 0.06} x2={left + widthPx} y2={top + depthPx * 0.06} stroke={strokeColor} strokeWidth={1} opacity={0.6} />
+                  {isIsland ? (
+                    <rect x={left + widthPx * 0.03} y={top + depthPx * 0.03} width={widthPx * 0.94} height={depthPx * 0.94} fill="none" stroke={strokeColor} strokeWidth={1} opacity={0.5} rx={3} />
+                  ) : (
+                    <line x1={left} y1={top + depthPx * 0.03} x2={left + widthPx} y2={top + depthPx * 0.03} stroke={strokeColor} strokeWidth={1} opacity={0.6} />
+                  )}
                   {doors}
                   {handles}
                 </>
@@ -967,8 +1075,8 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
               }
               return (
                 <>
-                  <line x1={left} y1={top + depthPx * 0.5} x2={left + widthPx} y2={top + depthPx * 0.5} stroke={strokeColor} strokeWidth={1.1} opacity={0.75} />
-                  <line x1={left + widthPx * 0.86} y1={top + depthPx * 0.12} x2={left + widthPx * 0.86} y2={top + depthPx * 0.38} stroke={strokeColor} strokeWidth={1.4} strokeLinecap="round" />
+                  <line x1={left} y1={top + depthPx * 0.7} x2={left + widthPx} y2={top + depthPx * 0.7} stroke={strokeColor} strokeWidth={1.1} opacity={0.75} />
+                  <line x1={left + widthPx * 0.88} y1={top + depthPx * 0.1} x2={left + widthPx * 0.88} y2={top + depthPx * 0.62} stroke={strokeColor} strokeWidth={1.6} strokeLinecap="round" opacity={0.85} />
                 </>
               );
             })()}
@@ -980,11 +1088,17 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
               const basinCount = (Number(fixture.widthM) || 0.8) >= 0.9 ? 2 : 1;
               const basinPad = counterW * 0.09;
               const basinW = basinCount === 2 ? (counterW - basinPad * 3) / 2 : counterW - basinPad * 2;
-              const basinH = counterH * 0.7;
-              const basinY = counterY + counterH * 0.18;
-              const basins = Array.from({ length: basinCount }).map((_, i) => {
+              const basinH = counterH * 0.8;
+              const basinY = counterY + counterH * 0.12;
+              // Basins are drawn noticeably rounder than cabinet door panels
+              // (which use a near-sharp rx) specifically so the two don't
+              // read as the same "inset rectangle" symbol from the top.
+              const basins = [];
+              for (let i = 0; i < basinCount; i += 1) {
                 const bx = counterX + basinPad + i * (basinW + basinPad);
-                return (
+                const bcx = bx + basinW / 2;
+                const bcy = basinY + basinH / 2;
+                basins.push(
                   <rect
                     key={`basin-${i}`}
                     x={bx}
@@ -994,11 +1108,14 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
                     fill="none"
                     stroke={strokeColor}
                     strokeWidth={1.0}
-                    rx={Math.min(basinW, basinH) * 0.25}
+                    rx={Math.min(basinW, basinH) * 0.4}
                     opacity={0.75}
                   />
                 );
-              });
+                basins.push(
+                  <circle key={`drain-${i}`} cx={bcx} cy={bcy} r={Math.max(1, Math.min(basinW, basinH) * 0.07)} fill="none" stroke={strokeColor} strokeWidth={0.8} opacity={0.7} />
+                );
+              }
               const faucetX = fixture.position.x;
               const faucetTopY = top + depthPx * 0.03;
               return (
@@ -1075,13 +1192,20 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
             <circle cx={left + widthPx * 0.26} cy={top + depthPx * 0.16} r={1.2} fill={strokeColor} />
             <circle cx={left + widthPx * 0.74} cy={top + depthPx * 0.16} r={1.2} fill={strokeColor} />
             {presetIdValue.includes('dryer') && (
-              <line x1={fixture.position.x} y1={top + depthPx * 0.86} x2={fixture.position.x} y2={top + depthPx * 0.94} stroke={strokeColor} strokeWidth={1.2} opacity={0.6} />
+              <>
+                <rect x={fixture.position.x - widthPx * 0.1} y={top + depthPx * 0.82} width={widthPx * 0.2} height={depthPx * 0.12} fill="none" stroke={strokeColor} strokeWidth={1.1} opacity={0.8} />
+                <circle cx={fixture.position.x} cy={top + depthPx * 0.88} r={1.6} fill="none" stroke={strokeColor} strokeWidth={0.9} opacity={0.8} />
+              </>
             )}
           </>
         )}
 
         {isStraightStairs && (() => {
-          const stepCount = 10;
+          // DIN 18065 comfort formula (2*riser + going = 590-650mm) puts a
+          // typical domestic going around 280mm; derive the tread count
+          // from the stair's actual run length instead of a fixed count so
+          // the drawn treads stay a realistic size regardless of preset.
+          const stepCount = Math.max(3, Math.round((Number(fixture.depthM) || 2.5) / DIN_GOING_M));
           const treads = [];
           for (let i = 1; i < stepCount; i += 1) {
             const y = top + (depthPx * i) / stepCount;
@@ -1123,7 +1247,12 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           const innerStart = pointAt(rInner, angleStart);
           const outline = `M ${outerStart.x} ${outerStart.y} A ${rOuter} ${rOuter} 0 0 1 ${outerEnd.x} ${outerEnd.y} L ${innerEnd.x} ${innerEnd.y} A ${rInner} ${rInner} 0 0 0 ${innerStart.x} ${innerStart.y} Z`;
 
-          const stepCount = 8;
+          const midR = (rInner + rOuter) / 2;
+          // Winder treads narrow toward the inner radius, so DIN 18065 sizes
+          // them by the going measured at the walking line (here, the
+          // radius midpoint) rather than a straight-run going.
+          const walkingLineArcM = midR * (Math.PI / 2) * (baseUnitM / GRID);
+          const stepCount = Math.max(3, Math.round(walkingLineArcM / DIN_GOING_M));
           const treads = [];
           for (let i = 1; i < stepCount; i += 1) {
             const deg = angleStart + ((angleEnd - angleStart) * i) / stepCount;
@@ -1132,7 +1261,6 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
             treads.push(<line key={`ctread-${i}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={strokeColor} strokeWidth={1} opacity={0.55} />);
           }
 
-          const midR = (rInner + rOuter) / 2;
           const arrowFromDeg = angleStart + 14;
           const arrowToDeg = angleEnd - 10;
           const arrowFrom = pointAt(midR, arrowFromDeg);
@@ -1161,7 +1289,9 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           const rInner = rOuter * 0.2;
           const cx = fixture.position.x;
           const cy = fixture.position.y;
-          const stepCount = 14;
+          const midR = (rInner + rOuter) / 2;
+          const walkingLineCircumferenceM = 2 * Math.PI * midR * (baseUnitM / GRID);
+          const stepCount = Math.max(6, Math.round(walkingLineCircumferenceM / DIN_GOING_M));
           const treads = Array.from({ length: stepCount }).map((_, i) => {
             const deg = (i / stepCount) * 360;
             const rad = (deg * Math.PI) / 180;
@@ -1169,7 +1299,6 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
             const to = { x: cx + Math.cos(rad) * rOuter, y: cy + Math.sin(rad) * rOuter };
             return <line key={`stread-${i}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={strokeColor} strokeWidth={1} opacity={0.55} />;
           });
-          const midR = (rInner + rOuter) / 2;
           const arrowFromDeg = -80;
           const arrowToDeg = 160;
           const arrowFromRad = (arrowFromDeg * Math.PI) / 180;

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   BASE_UNIT_OPTIONS,
   DIN_WALL_THICKNESS_OPTIONS_M,
@@ -68,8 +69,11 @@ export default function EditorPanel({
   roomsCount,
   fixturesCount,
   totalRoomAreaM2,
-  boundingBoxAreaM2
+  boundingBoxAreaM2,
+  exportPlan,
+  importPlan
 }) {
+  const importInputRef = useRef(null);
   return (
     <aside className="panel">
       <div className="panel-header">
@@ -350,6 +354,25 @@ export default function EditorPanel({
               </button>
             </div>
           )}
+
+          <div className="control-group">
+            <span>Export / Import</span>
+            <div className="place-switches">
+              <button type="button" onClick={exportPlan}>Export</button>
+              <button type="button" onClick={() => importInputRef.current?.click()}>Import</button>
+            </div>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                importPlan(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
         </div>
       )}
 
