@@ -279,6 +279,17 @@ button:disabled {
   opacity: 0.55;
 }
 
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.stage .canvas-wrap {
+  flex: 1 1 auto;
+}
+
 .canvas-wrap {
   position: relative;
   display: flex;
@@ -312,6 +323,8 @@ button:disabled {
   right: 0.75rem;
   top: 0.75rem;
   display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
   z-index: 2;
 }
 

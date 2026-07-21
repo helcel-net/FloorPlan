@@ -21,10 +21,20 @@ export const WINDOW_PRESETS_M = [
 ];
 
 export const WINDOW_TYPES = [
+  { value: 'open', label: 'Open (Frame)' },
   { value: 'fixed', label: 'Fixed' },
   { value: 'swing', label: 'Swing' },
   { value: 'slide', label: 'Slide' },
   { value: 'tilt', label: 'Tilt' }
+];
+
+// Vertical placement presets for a window opening - `sillM` is height above
+// the finished floor, `heightM` is the opening's own height (null means
+// "stretch up to the wall's own height", for a floor-to-ceiling opening).
+export const WINDOW_HEIGHT_PRESETS = [
+  { value: 'standard', label: 'Standard', sillM: 0.9, heightM: 1.15 },
+  { value: 'clerestory', label: 'Clerestory (Ranma)', sillM: 2.0, heightM: 0.45 },
+  { value: 'full', label: 'Full Height', sillM: 0, heightM: null }
 ];
 
 export const FURNITURE_PRESETS = {
@@ -205,3 +215,77 @@ export const FURNITURE_TYPES = [
   { value: 'office', label: 'Office' },
   { value: 'garden', label: 'Garden' }
 ];
+
+// Rough box height per furniture category, for a simplified 3D block -
+// there's no per-item height in the catalog above, so this is the fallback
+// whenever a preset's id doesn't match any of the more specific overrides
+// below, rather than tuning all ~140 individual items by hand.
+const FURNITURE_HEIGHT_BY_CATEGORY_M = {
+  living: 0.75,
+  lighting: 1.4,
+  dining: 0.75,
+  storage: 1.2,
+  plants: 0.9,
+  kitchen: 0.9,
+  laundry: 0.9,
+  bath: 0.6,
+  bedroom: 0.55,
+  office: 0.75,
+  garden: 0.75,
+  electric: 0.2,
+  water: 0.3
+};
+const DEFAULT_FURNITURE_HEIGHT_M = 0.75;
+
+// A category default alone would render, say, a rug and a wardrobe as the
+// same-height block - these id-pattern overrides catch the items where a
+// flat category height would look obviously wrong (floor coverings, very
+// low or very tall pieces), checked in order with the first match winning.
+// Everything else still falls back to the category default above.
+const FURNITURE_HEIGHT_OVERRIDES_M = [
+  [/^(rug|tatami|zabuton)-/, 0.02],
+  [/^shoji-screen-/, 1.8],
+  [/^byobu-/, 1.5],
+  [/^(coffee-table|kotatsu|chabudai)-/, 0.4],
+  [/^ottoman-/, 0.4],
+  [/^(sofa|chair-armchair)-/, 0.8],
+  [/^(chair|stool)-/, 0.85],
+  [/^(table|office-desk)-/, 0.75],
+  [/^(closet|storage-bookshelf|storage-elfa|storage-usm-haller)-/, 1.9],
+  [/^(storage-sideboard|storage-dresser|storage-tv-console|nightstand|storage-entry-bench|storage-fireplace)-/, 0.5],
+  [/^appliance-fridge-/, 1.8],
+  [/^(appliance-microwave|appliance-range-hood)-/, 0.4],
+  [/^(appliance-kitchen-base|appliance-dishwasher|appliance-oven|appliance-stove|appliance-bins|appliance-washer|appliance-dryer|appliance-utility-sink)-/, 0.85],
+  [/^(appliance-sink|bath-sink|wash-station)-/, 0.85],
+  [/^toilet-/, 0.4],
+  [/^shower-/, 2.0],
+  [/^bathtub-/, 0.55],
+  [/^(bed|futon)-/, 0.5],
+  [/^crib-/, 0.9],
+  [/^changing-table-/, 0.9],
+  [/^lamp-tolomeo-mini/, 1.3],
+  [/^lamp-tolomeo-tera/, 1.5],
+  [/^lamp-tolomeo-mega/, 1.8],
+  [/^ceiling-light/, 2.3],
+  [/^plant-tree-l-/, 1.8],
+  [/^plant-tree-m-/, 1.2],
+  [/^(plant-pot|plant-raisedbed)-/, 0.5],
+  [/^office-usm-corpus-/, 1.0],
+  [/^office-projector-/, 0.3],
+  [/^parasol-/, 2.2],
+  [/^firepit-/, 0.3],
+  [/^lounger-/, 0.4],
+  [/^bench-garden-/, 0.45],
+  [/^appliance-bbq-/, 0.9],
+  [/^(mirror|tv-|projector-screen)-/, 1.2],
+  [/^(electric-outlet|electric-switch)-/, 0.15],
+  [/^solar-panel-/, 1.7],
+  [/^(electric-panel|electric-solar-inverter|water-valve|water-drain|water-filter)-/, 0.3],
+  [/^(water-pump|water-heater)-/, 0.5]
+];
+
+export function estimateFurnitureHeightM(furnitureType, presetId) {
+  const override = FURNITURE_HEIGHT_OVERRIDES_M.find(([pattern]) => pattern.test(presetId || ''));
+  if (override) return override[1];
+  return FURNITURE_HEIGHT_BY_CATEGORY_M[furnitureType] || DEFAULT_FURNITURE_HEIGHT_M;
+}

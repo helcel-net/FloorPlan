@@ -45,3 +45,33 @@ export const RENDER_MODES = [
   { value: 'technical', label: 'Technical' },
   { value: 'utilities', label: 'Utilities' }
 ];
+
+// --- 3D / elevation ---
+export const DEFAULT_WALL_HEIGHT_M = 2.5;
+
+export const ROOF_SHAPES = [
+  { value: 'gable', label: 'Gable' },
+  { value: 'hip', label: 'Hip' },
+  { value: 'shed', label: 'Shed' },
+  { value: 'flat', label: 'Flat' }
+];
+
+export const DEFAULT_ROOF_PITCH_DEG = 30;
+export const DEFAULT_ROOF_OVERHANG_M = 0.3;
+export const ROOF_THICKNESS_M = 0.2;
+// Small vertical gap subtracted at surfaces that would otherwise sit exactly
+// flush with another surface (roof underside vs wall top, floor top vs wall
+// bottom) - imperceptible, but keeps those from being coplanar and z-fighting.
+export const SEAM_GAP_M = 0.01;
+
+export const DEFAULT_ROOM_FLOOR_THICKNESS_M = 0.12;
+
+// Opening (door/window) vertical proportions in 3D, meters from finished floor.
+export const DOOR_HEIGHT_M = 2.05;
+export const WINDOW_SILL_M = 0.9;
+export const WINDOW_HEIGHT_M = 1.15;
+
+// DIN 18065 comfort formula (2*riser + going = 590-650mm) puts a typical
+// domestic going around 280mm - shared by the 2D stair icon (FixtureLayer.jsx)
+// and the 3D stair geometry (core/stairs.js) so both always agree on tread count.
+export const STAIR_GOING_M = 0.28;

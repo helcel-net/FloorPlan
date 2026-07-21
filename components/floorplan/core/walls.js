@@ -87,12 +87,17 @@ export function normalizeAndSplitWalls(inputWalls) {
 
       if (dist(p1, p2) < EPS) continue;
 
+      // A wall that wasn't actually cut by any intersection keeps its own
+      // id and every other field (heightM override, etc.) - otherwise every
+      // wall on the floor would get a fresh random id on every edit (even
+      // one touching a single other wall), silently losing any selection
+      // keyed on that id and dropping fields this rebuild didn't know about.
+      const isUnsplit = ts.length === 2 && t1 === 0 && t2 === 1;
       out.push({
-        id: crypto.randomUUID(),
+        ...wall,
+        id: isUnsplit ? wall.id : crypto.randomUUID(),
         start: p1,
-        end: p2,
-        type: wall.type,
-        material: wall.material
+        end: p2
       });
     }
   }

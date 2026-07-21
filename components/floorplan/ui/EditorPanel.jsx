@@ -3,6 +3,7 @@ import {
   BASE_UNIT_OPTIONS,
   DIN_WALL_THICKNESS_OPTIONS_M,
   FLOOR_MATERIALS,
+  ROOF_SHAPES,
   WALL_MATERIALS,
   WALL_TYPES
 } from '../config/constants';
@@ -10,6 +11,7 @@ import {
   DOOR_PRESETS_M,
   DOOR_TYPES,
   FURNITURE_TYPES,
+  WINDOW_HEIGHT_PRESETS,
   WINDOW_PRESETS_M,
   WINDOW_TYPES
 } from '../editor/catalog';
@@ -37,6 +39,24 @@ export default function EditorPanel({
   selectedWall,
   updateSelectedWall,
   deleteSelectedWall,
+  floorWallHeightM,
+  setFloorWallHeightM,
+  floorRaiseM,
+  setFloorRaiseM,
+  drawKind,
+  setDrawKind,
+  newRoofShape,
+  setNewRoofShape,
+  newRoofPitchDeg,
+  setNewRoofPitchDeg,
+  newRoofRidgeAngleDeg,
+  setNewRoofRidgeAngleDeg,
+  newRoofOverhangM,
+  setNewRoofOverhangM,
+  roofDraftPoints,
+  selectedRoof,
+  updateSelectedRoof,
+  deleteSelectedRoof,
   placeKind,
   setPlaceKind,
   doorType,
@@ -49,6 +69,8 @@ export default function EditorPanel({
   setWindowType,
   windowWidthM,
   setWindowWidthM,
+  windowHeightPreset,
+  setWindowHeightPreset,
   furnitureType,
   setFurnitureType,
   furniturePresetId,
@@ -113,17 +135,122 @@ export default function EditorPanel({
       {toolMode === 'draw' && (
         <>
           <div className="control-group">
-            <label htmlFor="new-wall-type">Draw Wall Type</label>
-            <select id="new-wall-type" value={newWallType} onChange={(e) => setNewWallType(e.target.value)}>
-              {WALL_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
+            <span>Draw</span>
+            <div className="place-switches">
+              <button type="button" className={drawKind === 'wall' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setDrawKind('wall')}>Wall</button>
+              <button type="button" className={drawKind === 'roof' ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setDrawKind('roof')}>Roof</button>
+            </div>
           </div>
-          <div className="control-group">
-            <label htmlFor="new-wall-material">Draw Wall Material</label>
-            <select id="new-wall-material" value={newWallMaterial} onChange={(e) => setNewWallMaterial(e.target.value)}>
-              {WALL_MATERIALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </div>
+
+          {drawKind === 'wall' && (
+            <>
+              <div className="control-group">
+                <label htmlFor="new-wall-type">Draw Wall Type</label>
+                <select id="new-wall-type" value={newWallType} onChange={(e) => setNewWallType(e.target.value)}>
+                  {WALL_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
+              <div className="control-group">
+                <label htmlFor="new-wall-material">Draw Wall Material</label>
+                <select id="new-wall-material" value={newWallMaterial} onChange={(e) => setNewWallMaterial(e.target.value)}>
+                  {WALL_MATERIALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
+              <div className="control-group">
+                <label htmlFor="floor-wall-height">Floor Wall Height (m)</label>
+                <input
+                  id="floor-wall-height"
+                  type="number"
+                  step="0.05"
+                  min="1"
+                  value={floorWallHeightM}
+                  onChange={(e) => setFloorWallHeightM(e.target.value)}
+                />
+              </div>
+              <div className="control-group">
+                <label htmlFor="floor-raise">Floor Raise (m)</label>
+                <input
+                  id="floor-raise"
+                  type="number"
+                  step="0.05"
+                  value={floorRaiseM}
+                  onChange={(e) => setFloorRaiseM(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
+          {drawKind === 'roof' && (() => {
+            const editingRoof = selectedRoof;
+            const shape = editingRoof ? editingRoof.shape : newRoofShape;
+            const pitchDeg = editingRoof ? editingRoof.pitchDeg : newRoofPitchDeg;
+            const ridgeAngleDeg = editingRoof ? editingRoof.ridgeAngleDeg : newRoofRidgeAngleDeg;
+            const overhangM = editingRoof ? editingRoof.overhangM : newRoofOverhangM;
+            const applyShape = (value) => (editingRoof ? updateSelectedRoof({ shape: value }) : setNewRoofShape(value));
+            const applyPitch = (value) => (editingRoof ? updateSelectedRoof({ pitchDeg: Number(value) }) : setNewRoofPitchDeg(Number(value)));
+            const applyRidgeAngle = (value) => (editingRoof ? updateSelectedRoof({ ridgeAngleDeg: Number(value) }) : setNewRoofRidgeAngleDeg(Number(value)));
+            const applyOverhang = (value) => (editingRoof ? updateSelectedRoof({ overhangM: Number(value) }) : setNewRoofOverhangM(Number(value)));
+
+            return (
+              <>
+                <div className="control-group">
+                  <span>{editingRoof ? 'Edit Roof Shape' : 'Draw: click to add points, click the first point (or press Enter) to close.'}</span>
+                  <div className="place-switches">
+                    {ROOF_SHAPES.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className={shape === item.value ? 'place-switch place-switch-active' : 'place-switch'}
+                        onClick={() => applyShape(item.value)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {shape !== 'flat' && (
+                  <div className="control-group">
+                    <label htmlFor="roof-pitch">Pitch (degrees)</label>
+                    <input id="roof-pitch" type="number" step="1" min="1" max="80" value={pitchDeg} onChange={(e) => applyPitch(e.target.value)} />
+                  </div>
+                )}
+                {(shape === 'gable' || shape === 'shed') && (
+                  <div className="control-group">
+                    <label htmlFor="roof-ridge-angle">Ridge Direction (degrees)</label>
+                    <input id="roof-ridge-angle" type="number" step="5" value={ridgeAngleDeg} onChange={(e) => applyRidgeAngle(e.target.value)} />
+                  </div>
+                )}
+                <div className="control-group">
+                  <label htmlFor="roof-overhang">Overhang (m)</label>
+                  <input id="roof-overhang" type="number" step="0.05" min="0" value={overhangM} onChange={(e) => applyOverhang(e.target.value)} />
+                </div>
+                {editingRoof && (
+                  <div className="control-group">
+                    <label htmlFor="roof-eave-height">Eave Height Override (m)</label>
+                    <input
+                      id="roof-eave-height"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      placeholder={`Floor default (${floorWallHeightM} m)`}
+                      value={editingRoof.eaveHeightM ?? ''}
+                      onChange={(e) => updateSelectedRoof({ eaveHeightM: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                )}
+                {editingRoof && (
+                  <div className="control-group">
+                    <button type="button" className="secondary" onClick={deleteSelectedRoof}>Delete Selected Roof</button>
+                  </div>
+                )}
+                {!editingRoof && roofDraftPoints && roofDraftPoints.length > 0 && (
+                  <div className="control-group">
+                    <span>{roofDraftPoints.length} point(s) placed</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
 
@@ -140,6 +267,18 @@ export default function EditorPanel({
             <select id="edit-wall-material" value={selectedWall.material} onChange={(e) => updateSelectedWall({ material: e.target.value })}>
               {WALL_MATERIALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
+          </div>
+          <div className="control-group">
+            <label htmlFor="edit-wall-height">Wall Height (m)</label>
+            <input
+              id="edit-wall-height"
+              type="number"
+              step="0.05"
+              min="0"
+              placeholder={`Floor default (${floorWallHeightM} m)`}
+              value={selectedWall.heightM ?? ''}
+              onChange={(e) => updateSelectedWall({ heightM: e.target.value === '' ? null : Number(e.target.value) })}
+            />
           </div>
           <div className="control-group">
             <button type="button" className="secondary" onClick={deleteSelectedWall}>Delete Selected Wall</button>
@@ -229,6 +368,16 @@ export default function EditorPanel({
                   <select id="window-preset" value={String(windowWidthM)} onChange={(e) => setWindowWidthM(Number(e.target.value))}>
                     {WINDOW_PRESETS_M.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
+                </div>
+                <div className="control-group">
+                  <span>Window Height Preset</span>
+                  <div className="furniture-type-grid">
+                    {WINDOW_HEIGHT_PRESETS.map((item) => (
+                      <button key={item.value} type="button" className={windowHeightPreset === item.value ? 'place-switch place-switch-active' : 'place-switch'} onClick={() => setWindowHeightPreset(item.value)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
@@ -387,6 +536,17 @@ export default function EditorPanel({
             <select id="room-floor" value={selectedRoom.floor} onChange={(e) => updateRoomMeta(selectedRoom.key, { floor: e.target.value })}>
               {FLOOR_MATERIALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
+          </div>
+          <div className="control-group">
+            <label htmlFor="room-elevation">Raised Floor Override (m)</label>
+            <input
+              id="room-elevation"
+              type="number"
+              step="0.05"
+              placeholder={`Floor default (${floorRaiseM} m)`}
+              value={selectedRoom.elevationM ?? ''}
+              onChange={(e) => updateRoomMeta(selectedRoom.key, { elevationM: e.target.value === '' ? null : Number(e.target.value) })}
+            />
           </div>
           <div className="control-group">
             <button type="button" className="secondary" onClick={deleteSelectedRoom}>Delete Selected Room</button>

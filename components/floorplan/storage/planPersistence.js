@@ -103,7 +103,3 @@ export function setActivePlanId(id) {
   if (id) storage.setItem(ACTIVE_PLAN_ID_KEY, id);
   else storage.removeItem(ACTIVE_PLAN_ID_KEY);
 }
-
-export function loadLatestPlanFromStorage() {
-  return listStoredPlans()[0] || null;
-}

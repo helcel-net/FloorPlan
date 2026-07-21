@@ -1,45 +1,30 @@
-import { FLOOR_MATERIALS, GRID, WALL_MATERIALS } from '../config/constants';
+import { DEFAULT_WALL_HEIGHT_M, FLOOR_MATERIALS, WALL_MATERIALS } from '../config/constants';
+import { pointMToPx, pointPxToM } from '../core/geometry';
 import { buildRooms } from './derived';
 
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
 
-function wallColorHex(material) {
+export function wallColorHex(material) {
   return WALL_MATERIALS.find((item) => item.value === material)?.color || '#6e7480';
 }
 
-function floorColorHex(material) {
+export function floorColorHex(material) {
   return FLOOR_MATERIALS.find((item) => item.value === material)?.color || '#d8b082';
 }
 
-function toMeters(baseUnitM) {
-  return (px) => (px / GRID) * baseUnitM;
-}
-
-function toPx(baseUnitM) {
-  return (m) => (m / baseUnitM) * GRID;
-}
-
-function pointToMeters(point, toM) {
-  return { x: toM(point.x), y: toM(point.y) };
-}
-
-function pointToPx(point, fromM) {
-  return { x: fromM(point.x), y: fromM(point.y) };
-}
-
 function buildFloorExport(floor, wallThicknessByTypeM, baseUnitM, defaultFloor) {
-  const toM = toMeters(baseUnitM);
   const walls = floor.walls || [];
   const fixtures = floor.fixtures || [];
 
   const wallsExport = walls.map((wall) => ({
     id: wall.id,
-    startM: pointToMeters(wall.start, toM),
-    endM: pointToMeters(wall.end, toM),
+    startM: pointPxToM(wall.start, baseUnitM),
+    endM: pointPxToM(wall.end, baseUnitM),
     thicknessM: Number(wallThicknessByTypeM[wall.type]) || 0.115,
     type: wall.type,
     material: wall.material,
-    colorHex: wallColorHex(wall.material)
+    colorHex: wallColorHex(wall.material),
+    heightM: Number(wall.heightM) > 0 ? Number(wall.heightM) : null
   }));
 
   const openingsExport = fixtures
@@ -48,35 +33,54 @@ function buildFloorExport(floor, wallThicknessByTypeM, baseUnitM, defaultFloor) 
       id: fixture.id,
       kind: fixture.kind,
       wallId: fixture.wallId,
-      positionM: pointToMeters(fixture.position, toM),
+      positionM: pointPxToM(fixture.position, baseUnitM),
       angleRad: fixture.angle || 0,
       widthM: Number(fixture.widthM) || 0.8,
       doorType: fixture.kind === 'door' ? fixture.doorType : null,
       hinge: fixture.kind === 'door' ? (fixture.hinge || 'left') : null,
       windowType: fixture.kind === 'window' ? fixture.windowType : null,
+      windowHeightPreset: fixture.kind === 'window' ? (fixture.windowHeightPreset || 'standard') : null,
       swingSide: Number(fixture.swingSide) >= 0 ? 1 : -1
     }));
 
   const rooms = buildRooms(walls, wallThicknessByTypeM, baseUnitM, floor.roomMeta || {}, defaultFloor);
-  const roomsExport = rooms.map((room) => ({
-    key: room.key,
-    label: room.label,
-    material: room.floor,
-    colorHex: floorColorHex(room.floor),
-    areaM2: room.areaM2,
-    polygonM: (room.vertices || []).map((v) => pointToMeters(v, toM))
+  const roomsExport = rooms.map((room) => {
+    const elevationM = floor.roomMeta?.[room.key]?.elevationM;
+    return {
+      key: room.key,
+      label: room.label,
+      material: room.floor,
+      colorHex: floorColorHex(room.floor),
+      areaM2: room.areaM2,
+      polygonM: (room.vertices || []).map((v) => pointPxToM(v, baseUnitM)),
+      elevationM: Number.isFinite(Number(elevationM)) ? Number(elevationM) : null
+    };
+  });
+
+  const roofsExport = (floor.roofs || []).map((roof) => ({
+    id: roof.id,
+    shape: roof.shape,
+    polygonM: (roof.polygon || []).map((v) => pointPxToM(v, baseUnitM)),
+    pitchDeg: Number(roof.pitchDeg) || 0,
+    ridgeAngleDeg: Number(roof.ridgeAngleDeg) || 0,
+    eaveHeightM: Number(roof.eaveHeightM) > 0 ? Number(roof.eaveHeightM) : null,
+    overhangM: Number(roof.overhangM) || 0,
+    colorHex: roof.colorHex || '#8a5a3b'
   }));
 
   return {
     id: floor.id,
     name: floor.name,
+    wallHeightM: Number(floor.wallHeightM) > 0 ? Number(floor.wallHeightM) : DEFAULT_WALL_HEIGHT_M,
+    floorRaiseM: Number.isFinite(Number(floor.floorRaiseM)) ? Number(floor.floorRaiseM) : 0,
     walls: wallsExport,
     openings: openingsExport,
-    rooms: roomsExport
+    rooms: roomsExport,
+    roofs: roofsExport
   };
 }
 
-export function buildBlenderExportData({ name, floors, baseUnitM, wallThicknessByTypeM, defaultFloor }) {
+function buildBlenderExportData({ name, floors, baseUnitM, wallThicknessByTypeM, defaultFloor }) {
   return {
     formatVersion: FORMAT_VERSION,
     name: name || 'Untitled Plan',
@@ -112,42 +116,61 @@ export function importPlanFromJson(data) {
     throw new Error('Not a recognized floor plan export (missing a "floors" list).');
   }
   const baseUnitM = Number(data.baseUnitM) || 0.25;
-  const fromM = toPx(baseUnitM);
 
   const floors = data.floors.map((floor, index) => {
     const walls = (floor.walls || []).map((wall) => ({
       id: wall.id,
-      start: pointToPx(wall.startM, fromM),
-      end: pointToPx(wall.endM, fromM),
+      start: pointMToPx(wall.startM, baseUnitM),
+      end: pointMToPx(wall.endM, baseUnitM),
       type: wall.type,
-      material: wall.material
+      material: wall.material,
+      heightM: Number(wall.heightM) > 0 ? Number(wall.heightM) : null
     }));
 
     const fixtures = (floor.openings || []).map((opening) => ({
       id: opening.id,
       kind: opening.kind,
       wallId: opening.wallId,
-      position: pointToPx(opening.positionM, fromM),
+      position: pointMToPx(opening.positionM, baseUnitM),
       angle: Number(opening.angleRad) || 0,
       widthM: Number(opening.widthM) || 0.8,
       doorType: opening.doorType || undefined,
       hinge: opening.hinge || undefined,
       windowType: opening.windowType || undefined,
+      windowHeightPreset: opening.windowHeightPreset || undefined,
       swingSide: Number(opening.swingSide) >= 0 ? 1 : -1
     }));
 
     const roomMeta = {};
     (floor.rooms || []).forEach((room) => {
       if (!room.key) return;
-      roomMeta[room.key] = { label: room.label, floor: room.material };
+      roomMeta[room.key] = {
+        label: room.label,
+        floor: room.material,
+        elevationM: Number.isFinite(Number(room.elevationM)) ? Number(room.elevationM) : null
+      };
     });
+
+    const roofs = (floor.roofs || []).map((roof) => ({
+      id: roof.id || crypto.randomUUID(),
+      shape: roof.shape || 'gable',
+      polygon: (roof.polygonM || []).map((v) => pointMToPx(v, baseUnitM)),
+      pitchDeg: Number(roof.pitchDeg) || 0,
+      ridgeAngleDeg: Number(roof.ridgeAngleDeg) || 0,
+      eaveHeightM: Number(roof.eaveHeightM) > 0 ? Number(roof.eaveHeightM) : null,
+      overhangM: Number(roof.overhangM) || 0,
+      colorHex: roof.colorHex || '#8a5a3b'
+    }));
 
     return {
       id: floor.id || `floor-${index + 1}`,
       name: floor.name || `Floor ${index + 1}`,
       walls,
       fixtures,
-      roomMeta
+      roomMeta,
+      wallHeightM: Number(floor.wallHeightM) > 0 ? Number(floor.wallHeightM) : DEFAULT_WALL_HEIGHT_M,
+      floorRaiseM: Number.isFinite(Number(floor.floorRaiseM)) ? Number(floor.floorRaiseM) : 0,
+      roofs
     };
   });
 

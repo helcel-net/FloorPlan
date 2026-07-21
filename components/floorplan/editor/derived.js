@@ -1,5 +1,5 @@
-import { EPS, FLOOR_MATERIALS, GRID, WALL_MATERIALS } from '../config/constants';
-import { clampPoint, dist } from '../core/geometry';
+import { EPS, FLOOR_MATERIALS, WALL_MATERIALS } from '../config/constants';
+import { clampPoint, dist, mToPx, pxToM } from '../core/geometry';
 import { buildRoomRegions, collectRoomWallIds, isRegionBoundedByClosedConnectedWalls } from '../core/rooms';
 import {
   buildPlacedDoorFixture,
@@ -18,7 +18,7 @@ export function buildEffectiveWalls(walls, fixtures, baseUnitM) {
     const ranges = fixtures
       .filter((fixture) => isWallOpeningFixture(fixture) && fixture.wallId === wall.id)
       .map((fixture) => {
-        const widthPx = ((Number(fixture.widthM) || 0.8) / baseUnitM) * GRID;
+        const widthPx = mToPx(Number(fixture.widthM) || 0.8, baseUnitM);
         const projection = projectPointOnWall(fixture.position, wall);
         const halfT = (widthPx / 2) / wallLen;
         return {
@@ -70,6 +70,7 @@ export function buildRooms(walls, wallThicknessByTypeM, baseUnitM, roomMeta, def
         ...region,
         label: meta.label || `Room ${i + 1}`,
         floor: meta.floor || defaultFloor,
+        elevationM: meta.elevationM ?? null,
         wallIds: collectRoomWallIds(region, walls)
       };
     });
@@ -82,7 +83,7 @@ export function buildDrawPreviewMeasurement(toolMode, startPoint, hoverPoint, ba
   return {
     x: (startPoint.x + hoverPoint.x) / 2,
     y: (startPoint.y + hoverPoint.y) / 2 - 8,
-    meters: (lenPx / GRID) * baseUnitM
+    meters: pxToM(lenPx, baseUnitM)
   };
 }
 
@@ -100,7 +101,7 @@ export function buildDraggedVertexMeasurements(dragState, dragPreviewPoint, wall
         id: wall.id,
         x: (wall.start.x + wall.end.x) / 2,
         y: (wall.start.y + wall.end.y) / 2 - 8,
-        meters: (dist(wall.start, wall.end) / GRID) * baseUnitM
+        meters: pxToM(dist(wall.start, wall.end), baseUnitM)
       }));
   }
 
@@ -130,7 +131,7 @@ export function buildDraggedVertexMeasurements(dragState, dragPreviewPoint, wall
         id: wall.id,
         x: (wall.start.x + wall.end.x) / 2,
         y: (wall.start.y + wall.end.y) / 2 - 8,
-        meters: (dist(wall.start, wall.end) / GRID) * baseUnitM
+        meters: pxToM(dist(wall.start, wall.end), baseUnitM)
       }));
   }
 

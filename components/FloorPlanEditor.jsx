@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   BASE_UNIT_OPTIONS,
+  DEFAULT_ROOF_OVERHANG_M,
+  DEFAULT_ROOF_PITCH_DEG,
+  DEFAULT_WALL_HEIGHT_M,
   GRID,
   RENDER_MODES,
   VIEW_H,
@@ -20,6 +23,7 @@ import { normalizeAndSplitWalls, wallMetersToPx } from './floorplan/core/walls';
 import {
   DOOR_PRESETS_M,
   FURNITURE_PRESETS,
+  WINDOW_HEIGHT_PRESETS,
   WINDOW_PRESETS_M
 } from './floorplan/editor/catalog';
 import {
@@ -58,8 +62,10 @@ import {
   createEmptyPlanFloor,
   normalizePlanFloors
 } from './floorplan/editor/floors';
+import { createRoofFromDraft, findRoofAtPoint, isNearDraftStart } from './floorplan/editor/roofs';
 import { computeBoundingBoxAreaM2, sumRoomAreaM2 } from './floorplan/editor/stats';
 import { scalePlanForBaseUnit } from './floorplan/editor/transforms';
+import { buildFloorWindowModel3D } from './floorplan/core/model3d';
 import {
   deletePlanFromStorage,
   getActivePlanId,
@@ -71,6 +77,8 @@ import {
 import EditorPanel from './floorplan/ui/EditorPanel';
 import FloorPlanCanvas from './floorplan/ui/FloorPlanCanvas';
 import PlanLibraryDialog from './floorplan/ui/PlanLibraryDialog';
+import Scene3D from './floorplan/render3d/Scene3D';
+import ElevationView from './floorplan/render3d/ElevationView';
 
 const DEFAULT_BASE_UNIT_M = Number(BASE_UNIT_OPTIONS.find((option) => option.default)?.value) || 1;
 const DEFAULT_CANVAS_ASPECT = VIEW_W / VIEW_H;
@@ -87,6 +95,17 @@ const TOOL_BUTTONS = [
   { value: 'edit', label: 'Edit', shortcut: '2' },
   { value: 'place', label: 'Place', shortcut: '3' }
 ];
+const VIEW_TABS = [
+  { value: 'plan', label: 'Plan' },
+  { value: '3d', label: '3D' },
+  { value: 'elevation', label: 'Elevation' }
+];
+// Stable fallbacks for the rare edge cases below (no floors yet, an unknown
+// furniture type) - module-scoped so the fallback is the SAME reference
+// every render, unlike an inline `[]`/`{}` literal, which would otherwise
+// make every memo/effect that depends on these recompute on every render.
+const EMPTY_FLOOR = { walls: [], fixtures: [], roomMeta: {}, roofs: [] };
+const EMPTY_PRESETS = [];
 
 export default function FloorPlanEditor() {
   const [planName, setPlanName] = useState('My Home');
@@ -101,9 +120,19 @@ export default function FloorPlanEditor() {
   const [doorWidthM, setDoorWidthM] = useState(DOOR_PRESETS_M[1].value);
   const [windowType, setWindowType] = useState('fixed');
   const [windowWidthM, setWindowWidthM] = useState(WINDOW_PRESETS_M[2].value);
+  const [windowHeightPreset, setWindowHeightPreset] = useState(WINDOW_HEIGHT_PRESETS[0].value);
   const [furnitureType, setFurnitureType] = useState('living');
   const [furniturePresetId, setFurniturePresetId] = useState(FURNITURE_PRESETS.living[0].id);
   const [furnitureAngleDeg, setFurnitureAngleDeg] = useState(0);
+  const [activeView, setActiveView] = useState('plan');
+  const [viewFloorIndex, setViewFloorIndex] = useState(0);
+  const [drawKind, setDrawKind] = useState('wall');
+  const [newRoofShape, setNewRoofShape] = useState('gable');
+  const [newRoofPitchDeg, setNewRoofPitchDeg] = useState(DEFAULT_ROOF_PITCH_DEG);
+  const [newRoofRidgeAngleDeg, setNewRoofRidgeAngleDeg] = useState(0);
+  const [newRoofOverhangM, setNewRoofOverhangM] = useState(DEFAULT_ROOF_OVERHANG_M);
+  const [roofDraftPoints, setRoofDraftPoints] = useState([]);
+  const [selectedRoofId, setSelectedRoofId] = useState(null);
   const [defaultFloor, setDefaultFloor] = useState('tatami');
   const [baseUnitM, setBaseUnitM] = useState(DEFAULT_BASE_UNIT_M);
   const [wallThicknessByTypeM, setWallThicknessByTypeM] = useState(() => ({ ...DEFAULT_WALL_THICKNESS_BY_TYPE_M }));
@@ -133,13 +162,27 @@ export default function FloorPlanEditor() {
   const shouldRecenterAfterDataLoadRef = useRef(false);
   const didAutoLoadPlanRef = useRef(false);
   const floorColorByValue = useMemo(() => buildFloorColorByValue(), []);
-  const activeFloor = floors[activeFloorIndex] || floors[0] || { walls: [], fixtures: [], roomMeta: {} };
-  const walls = activeFloor?.walls || [];
-  const fixtures = activeFloor?.fixtures || [];
-  const roomMeta = activeFloor?.roomMeta || {};
+  const activeFloor = floors[activeFloorIndex] || floors[0] || EMPTY_FLOOR;
+  const walls = useMemo(() => activeFloor?.walls || [], [activeFloor]);
+  const fixtures = useMemo(() => activeFloor?.fixtures || [], [activeFloor]);
+  const roomMeta = useMemo(() => activeFloor?.roomMeta || {}, [activeFloor]);
 
   const selectedWall = useMemo(() => walls.find((w) => w.id === selectedWallId) || null, [walls, selectedWallId]);
   const selectedFixture = useMemo(() => fixtures.find((f) => f.id === selectedFixtureId) || null, [fixtures, selectedFixtureId]);
+  const roofs = useMemo(() => activeFloor?.roofs || [], [activeFloor]);
+  const selectedRoof = useMemo(() => roofs.find((r) => r.id === selectedRoofId) || null, [roofs, selectedRoofId]);
+  const maxViewFloorIndex = floors.length;
+  const clampedViewFloorIndex = Math.min(Math.max(viewFloorIndex, 0), maxViewFloorIndex);
+  const windowedModel3D = useMemo(
+    () => buildFloorWindowModel3D(floors, { baseUnitM, wallThicknessByTypeM, defaultFloor }, clampedViewFloorIndex),
+    [floors, baseUnitM, wallThicknessByTypeM, defaultFloor, clampedViewFloorIndex]
+  );
+  const goUpViewFloor = useCallback(() => {
+    setViewFloorIndex((current) => Math.min(current + 1, maxViewFloorIndex));
+  }, [maxViewFloorIndex]);
+  const goDownViewFloor = useCallback(() => {
+    setViewFloorIndex((current) => Math.max(current - 1, 0));
+  }, []);
   const effectiveWalls = useMemo(() => buildEffectiveWalls(walls, fixtures, baseUnitM), [walls, fixtures, baseUnitM]);
   const previousFloorWallLayers = useMemo(() => floors
     .slice(0, activeFloorIndex)
@@ -159,6 +202,32 @@ export default function FloorPlanEditor() {
       index === activeFloorIndex ? updater(floor) : floor
     )));
   }, [activeFloorIndex]);
+
+  // An empty floor (e.g. one added via "go up a floor" and then abandoned
+  // without drawing anything) has no footprint for buildRooms/buildRoofMesh
+  // to anchor to, and can leave the 3D/roof/elevation views showing a
+  // confusing blank or truncated stack. Never prunes the active floor
+  // itself, since that's usually one the user just created and is about
+  // to draw on. A watcher effect (rather than pruning at each individual
+  // mutation site) is deliberate: a floor can become empty via many
+  // different actions (deleting the last wall, fixture, or roof; undo;
+  // import), and centralizing the check here avoids duplicating it at
+  // every one of those call sites.
+  useEffect(() => {
+    if (floors.length <= 1) return;
+    const isEmptyFloor = (floor) => (
+      (floor.walls || []).length === 0
+      && (floor.fixtures || []).length === 0
+      && (floor.roofs || []).length === 0
+    );
+    const keepIndices = floors
+      .map((_, index) => index)
+      .filter((index) => index === activeFloorIndex || !isEmptyFloor(floors[index]));
+    if (keepIndices.length === floors.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
+    setFloors(keepIndices.map((index) => floors[index]));
+    setActiveFloorIndex(keepIndices.indexOf(activeFloorIndex));
+  }, [floors, activeFloorIndex]);
 
   const setWalls = useCallback((nextWalls) => {
     updateActiveFloor((floor) => ({
@@ -181,28 +250,54 @@ export default function FloorPlanEditor() {
     }));
   }, [updateActiveFloor]);
 
+  const setRoofs = useCallback((nextRoofs) => {
+    updateActiveFloor((floor) => ({
+      ...floor,
+      roofs: typeof nextRoofs === 'function' ? nextRoofs(floor.roofs || []) : nextRoofs
+    }));
+  }, [updateActiveFloor]);
+
+  const setFloorWallHeightM = useCallback((heightM) => {
+    updateActiveFloor((floor) => ({ ...floor, wallHeightM: Number(heightM) > 0 ? Number(heightM) : DEFAULT_WALL_HEIGHT_M }));
+  }, [updateActiveFloor]);
+
+  const setFloorRaiseM = useCallback((raiseM) => {
+    updateActiveFloor((floor) => ({ ...floor, floorRaiseM: Number.isFinite(Number(raiseM)) ? Number(raiseM) : 0 }));
+  }, [updateActiveFloor]);
+
   const clearSelections = useCallback(() => {
     setSelectedWallId(null);
     setSelectedFixtureId(null);
     setSelectedRoomKey(null);
+    setSelectedRoofId(null);
   }, []);
 
   const selectWall = useCallback((wallId) => {
     setSelectedWallId(wallId);
     setSelectedFixtureId(null);
     setSelectedRoomKey(null);
+    setSelectedRoofId(null);
   }, []);
 
   const selectFixture = useCallback((fixtureId) => {
     setSelectedFixtureId(fixtureId);
     setSelectedWallId(null);
     setSelectedRoomKey(null);
+    setSelectedRoofId(null);
   }, []);
 
   const selectRoom = useCallback((roomKey) => {
     setSelectedRoomKey(roomKey);
     setSelectedWallId(null);
     setSelectedFixtureId(null);
+    setSelectedRoofId(null);
+  }, []);
+
+  const selectRoof = useCallback((roofId) => {
+    setSelectedRoofId(roofId);
+    setSelectedWallId(null);
+    setSelectedFixtureId(null);
+    setSelectedRoomKey(null);
   }, []);
 
   const clearInteractionState = useCallback(() => {
@@ -212,6 +307,7 @@ export default function FloorPlanEditor() {
     setDragState(null);
     setDragPreviewPoint(null);
     setPanState(null);
+    setRoofDraftPoints([]);
   }, []);
 
   const clearFloorUiState = useCallback(() => {
@@ -250,6 +346,28 @@ export default function FloorPlanEditor() {
   const rebindFixturesToWalls = useCallback((nextWalls) => {
     setFixtures((current) => applyWallRebinding(nextWalls, current));
   }, [applyWallRebinding, setFixtures]);
+
+  const deleteSelectedWall = useCallback(() => {
+    if (!selectedWall) return;
+    setWalls((current) => {
+      const normalized = normalizeAndSplitWalls(current.filter((w) => w.id !== selectedWall.id));
+      rebindFixturesToWalls(normalized);
+      return normalized;
+    });
+    clearSelections();
+  }, [clearSelections, rebindFixturesToWalls, selectedWall, setWalls]);
+
+  const deleteSelectedFixture = useCallback(() => {
+    if (!selectedFixture) return;
+    setFixtures((current) => current.filter((f) => f.id !== selectedFixture.id));
+    clearSelections();
+  }, [clearSelections, selectedFixture, setFixtures]);
+
+  const deleteSelectedRoof = useCallback(() => {
+    if (!selectedRoof) return;
+    setRoofs((current) => current.filter((r) => r.id !== selectedRoof.id));
+    clearSelections();
+  }, [clearSelections, selectedRoof, setRoofs]);
 
   const findVertexAtPoint = useCallback((point) => (
     findVertexAtPointInWalls(walls, point)
@@ -296,10 +414,15 @@ export default function FloorPlanEditor() {
     setActiveFloorIndex((current) => current + 1);
     shouldRecenterAfterDataLoadRef.current = true;
     clearFloorUiState();
-  }, [activeFloorIndex, clearFloorUiState, floors.length, setFloors]);
+  }, [activateFloor, activeFloorIndex, clearFloorUiState, floors.length, setFloors]);
 
+  // Resets the camera to a default framing whenever the current floor
+  // becomes completely empty - reachable from many places (clearing the
+  // plan, deleting the last wall/fixture, switching to a blank floor), so a
+  // watcher effect avoids repeating the reset call at each of those sites.
   useEffect(() => {
     if (walls.length || fixtures.length || previousFloorWallLayers.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     setCamera(buildDefaultCamera(canvasAspect));
   }, [canvasAspect, walls.length, fixtures.length, previousFloorWallLayers.length]);
 
@@ -314,10 +437,27 @@ export default function FloorPlanEditor() {
   );
 
   const selectedRoom = useMemo(() => rooms.find((r) => r.key === selectedRoomKey) || null, [rooms, selectedRoomKey]);
-  const activeFurniturePresets = FURNITURE_PRESETS[furnitureType] || [];
 
+  const deleteSelectedRoom = useCallback(() => {
+    if (!selectedRoom) return;
+    setRoomMeta((current) => ({
+      ...current,
+      [selectedRoom.key]: {
+        ...(current[selectedRoom.key] || {}),
+        hidden: true
+      }
+    }));
+    clearSelections();
+  }, [clearSelections, selectedRoom, setRoomMeta]);
+
+  const activeFurniturePresets = FURNITURE_PRESETS[furnitureType] || EMPTY_PRESETS;
+
+  // Clamps the selected furniture preset back into range whenever the
+  // active category's preset list changes (e.g. switching furniture type)
+  // and the previously-selected preset id no longer belongs to it.
   useEffect(() => {
     if (!activeFurniturePresets.some((preset) => preset.id === furniturePresetId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
       setFurniturePresetId(activeFurniturePresets[0]?.id || '');
     }
   }, [activeFurniturePresets, furniturePresetId]);
@@ -401,8 +541,13 @@ export default function FloorPlanEditor() {
     }));
   }
 
+  // Re-binds door/window fixtures to their (possibly moved or split) walls
+  // whenever `walls` changes - reachable from many wall edits (drag, split,
+  // delete), so a watcher effect avoids repeating the rebind call at each
+  // of those call sites.
   useEffect(() => {
     if (!walls.length || !fixtures.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     rebindFixturesToWalls(walls);
   }, [walls, fixtures.length, rebindFixturesToWalls]);
 
@@ -452,7 +597,7 @@ export default function FloorPlanEditor() {
         h: nextH
       };
     });
-  }, [toolMode, placeKind, selectedFixture, canvasAspect]);
+  }, [toolMode, placeKind, selectedFixture, canvasAspect, setFixtures]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -706,9 +851,39 @@ export default function FloorPlanEditor() {
           rawPoint: raw,
           wall,
           windowType,
-          windowWidthM
+          windowWidthM,
+          windowHeightPreset
         })));
       }
+      return;
+    }
+
+    if (toolMode === 'draw' && drawKind === 'roof') {
+      if (roofDraftPoints.length === 0) {
+        const hitRoof = findRoofAtPoint(raw, roofs);
+        if (hitRoof) {
+          selectRoof(hitRoof.id);
+          return;
+        }
+        clearSelections();
+        setRoofDraftPoints([point]);
+        return;
+      }
+
+      if (isNearDraftStart(point, roofDraftPoints)) {
+        const roof = createRoofFromDraft(roofDraftPoints, {
+          shape: newRoofShape,
+          pitchDeg: newRoofPitchDeg,
+          ridgeAngleDeg: newRoofRidgeAngleDeg,
+          overhangM: newRoofOverhangM
+        });
+        setRoofs((current) => current.concat(roof));
+        setRoofDraftPoints([]);
+        selectRoof(roof.id);
+        return;
+      }
+
+      setRoofDraftPoints((current) => current.concat(point));
       return;
     }
 
@@ -738,6 +913,7 @@ export default function FloorPlanEditor() {
     setStartPoint(null);
     setDragState(null);
     setDragPreviewPoint(null);
+    setRoofDraftPoints([]);
   }
 
   function onCanvasMouseLeave() {
@@ -775,24 +951,6 @@ export default function FloorPlanEditor() {
     clearSelections();
   }
 
-  function onKeyDown(event) {
-    if (event.key === 'Escape') {
-      setStartPoint(null);
-      setDragState(null);
-      setDragPreviewPoint(null);
-    }
-    if (event.key.toLowerCase() === 'd') {
-      if (selectedRoom) deleteSelectedRoom();
-      else if (selectedFixture) deleteSelectedFixture();
-      else deleteSelectedWall();
-    }
-    const numeric = Number(event.key);
-    if (Number.isInteger(numeric) && numeric >= 1) {
-      const nextMode = TOOL_MODES[numeric - 1];
-      if (nextMode) setToolMode(nextMode);
-    }
-  }
-
   const handleGlobalKeyDown = useCallback((event) => {
     const target = event.target;
     if (
@@ -801,8 +959,40 @@ export default function FloorPlanEditor() {
     ) {
       return;
     }
-    onKeyDown(event);
-  }, [selectedFixture, selectedRoom, selectedWall]);
+
+    if (event.key === 'Escape') {
+      setStartPoint(null);
+      setDragState(null);
+      setDragPreviewPoint(null);
+      setRoofDraftPoints([]);
+    }
+    if (event.key === 'Enter' && toolMode === 'draw' && drawKind === 'roof' && roofDraftPoints.length >= 3) {
+      const roof = createRoofFromDraft(roofDraftPoints, {
+        shape: newRoofShape,
+        pitchDeg: newRoofPitchDeg,
+        ridgeAngleDeg: newRoofRidgeAngleDeg,
+        overhangM: newRoofOverhangM
+      });
+      setRoofs((current) => current.concat(roof));
+      setRoofDraftPoints([]);
+      selectRoof(roof.id);
+    }
+    if (event.key.toLowerCase() === 'd') {
+      if (selectedRoom) deleteSelectedRoom();
+      else if (selectedFixture) deleteSelectedFixture();
+      else if (selectedRoof) deleteSelectedRoof();
+      else deleteSelectedWall();
+    }
+    const numeric = Number(event.key);
+    if (Number.isInteger(numeric) && numeric >= 1) {
+      const nextMode = TOOL_MODES[numeric - 1];
+      if (nextMode) setToolMode(nextMode);
+    }
+  }, [
+    selectedFixture, selectedRoom, selectedRoof,
+    toolMode, drawKind, roofDraftPoints, newRoofShape, newRoofPitchDeg, newRoofRidgeAngleDeg, newRoofOverhangM,
+    deleteSelectedFixture, deleteSelectedRoof, deleteSelectedRoom, deleteSelectedWall, selectRoof, setRoofs
+  ]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -830,43 +1020,20 @@ export default function FloorPlanEditor() {
     });
   }
 
-  function deleteSelectedWall() {
-    if (!selectedWall) return;
-    setWalls((current) => {
-      const normalized = normalizeAndSplitWalls(current.filter((w) => w.id !== selectedWall.id));
-      rebindFixturesToWalls(normalized);
-      return normalized;
-    });
-    clearSelections();
-  }
-
-  function deleteSelectedFixture() {
-    if (!selectedFixture) return;
-    setFixtures((current) => current.filter((f) => f.id !== selectedFixture.id));
-    clearSelections();
+  function updateSelectedRoof(patch) {
+    if (!selectedRoof) return;
+    setRoofs((current) => current.map((r) => (r.id === selectedRoof.id ? { ...r, ...patch } : r)));
   }
 
   function updateRoomMeta(roomKey, patch) {
     setRoomMeta((current) => ({
       ...current,
       [roomKey]: {
-        label: current[roomKey]?.label,
-        floor: current[roomKey]?.floor || defaultFloor,
+        floor: defaultFloor,
+        ...current[roomKey],
         ...patch
       }
     }));
-  }
-
-  function deleteSelectedRoom() {
-    if (!selectedRoom) return;
-    setRoomMeta((current) => ({
-      ...current,
-      [selectedRoom.key]: {
-        ...(current[selectedRoom.key] || {}),
-        hidden: true
-      }
-    }));
-    clearSelections();
   }
 
   const hiddenRoomCount = useMemo(
@@ -893,9 +1060,9 @@ export default function FloorPlanEditor() {
     setPlanName('Untitled Plan');
   }
 
-  function isPlanEmpty() {
-    return floors.every((floor) => (floor.walls || []).length === 0 && (floor.fixtures || []).length === 0);
-  }
+  const isPlanEmpty = useCallback(() => (
+    floors.every((floor) => (floor.walls || []).length === 0 && (floor.fixtures || []).length === 0)
+  ), [floors]);
 
   const persistPlan = useCallback(async (targetId) => {
     if (isPlanEmpty()) {
@@ -934,7 +1101,7 @@ export default function FloorPlanEditor() {
       console.warn('Failed to save plan to local storage:', error);
       window.alert('Could not save the plan (local storage unavailable or full).');
     }
-  }, [baseUnitM, buildFittedCameraForPlan, defaultFloor, fixtures, floors, planName, roomMeta, wallThicknessByTypeM, walls]);
+  }, [baseUnitM, buildFittedCameraForPlan, defaultFloor, fixtures, floors, isPlanEmpty, planName, roomMeta, wallThicknessByTypeM, walls]);
 
   function savePlan() {
     persistPlan(activeProjectId);
@@ -1003,15 +1170,22 @@ export default function FloorPlanEditor() {
     setLibraryProjects(listStoredPlans());
   }
 
+  // Client-only hydration flag: there's no way to know "past first client
+  // render" other than an effect, since SSR has no client and this must not
+  // read as true during the server-rendered/pre-hydration pass.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     setHasHydrated(true);
   }, []);
 
+  // Restores the last-active plan from localStorage on first mount - also
+  // necessarily an effect, since localStorage isn't available during SSR.
   useEffect(() => {
     if (didAutoLoadPlanRef.current) return;
     didAutoLoadPlanRef.current = true;
     const activeId = getActivePlanId();
     const entry = (activeId && getStoredPlan(activeId)) || listStoredPlans()[0] || null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     if (entry) loadProjectEntry(entry);
   }, [loadProjectEntry]);
 
@@ -1065,6 +1239,24 @@ export default function FloorPlanEditor() {
         selectedWall={selectedWall}
         updateSelectedWall={updateSelectedWall}
         deleteSelectedWall={deleteSelectedWall}
+        floorWallHeightM={activeFloor?.wallHeightM || DEFAULT_WALL_HEIGHT_M}
+        setFloorWallHeightM={setFloorWallHeightM}
+        floorRaiseM={activeFloor?.floorRaiseM || 0}
+        setFloorRaiseM={setFloorRaiseM}
+        drawKind={drawKind}
+        setDrawKind={setDrawKind}
+        newRoofShape={newRoofShape}
+        setNewRoofShape={setNewRoofShape}
+        newRoofPitchDeg={newRoofPitchDeg}
+        setNewRoofPitchDeg={setNewRoofPitchDeg}
+        newRoofRidgeAngleDeg={newRoofRidgeAngleDeg}
+        setNewRoofRidgeAngleDeg={setNewRoofRidgeAngleDeg}
+        newRoofOverhangM={newRoofOverhangM}
+        setNewRoofOverhangM={setNewRoofOverhangM}
+        roofDraftPoints={roofDraftPoints}
+        selectedRoof={selectedRoof}
+        updateSelectedRoof={updateSelectedRoof}
+        deleteSelectedRoof={deleteSelectedRoof}
         placeKind={placeKind}
         setPlaceKind={setPlaceKind}
         doorType={doorType}
@@ -1077,6 +1269,8 @@ export default function FloorPlanEditor() {
         setWindowType={setWindowType}
         windowWidthM={windowWidthM}
         setWindowWidthM={setWindowWidthM}
+        windowHeightPreset={windowHeightPreset}
+        setWindowHeightPreset={setWindowHeightPreset}
         furnitureType={furnitureType}
         setFurnitureType={setFurnitureType}
         furniturePresetId={furniturePresetId}
@@ -1102,50 +1296,91 @@ export default function FloorPlanEditor() {
         importPlan={importPlan}
       />
 
-      <FloorPlanCanvas
-        svgRef={svgRef}
-        camera={camera}
-        renderMode={renderMode}
-        recenterAndFitCamera={recenterAndFitCamera}
-        savePlan={savePlan}
-        saveAsNewPlan={saveAsNewPlan}
-        openLoadDialog={openLoadDialog}
-        clearPlan={clearPlan}
-        exportPlanImage={exportPlanImage}
-        onMouseMove={onMouseMove}
-        onMouseDown={onMouseDown}
-        onMouseUp={onMouseUp}
-        onCanvasMouseLeave={onCanvasMouseLeave}
-        onCanvasClick={onCanvasClick}
-        onCanvasContextMenu={onCanvasContextMenu}
-        rooms={rooms}
-        floorColorByValue={floorColorByValue}
-        hasHydrated={hasHydrated}
-        activeFloorIndex={activeFloorIndex}
-        floorsCount={floors.length}
-        goToLowerFloor={goToLowerFloor}
-        goToUpperFloor={goToUpperFloor}
-        lowerFloorsCount={previousFloorWallLayers.length}
-        selectedRoomKey={selectedRoomKey}
-        hoverRoomKey={hoverRoomKey}
-        toolMode={toolMode}
-        setHoverRoomKey={setHoverRoomKey}
-        selectRoom={selectRoom}
-        previousFloorWallLayers={previousFloorWallLayers}
-        effectiveWalls={effectiveWalls}
-        wallStyle={wallStyle}
-        selectedWallId={selectedWallId}
-        hoverWallId={hoverWallId}
-        walls={walls}
-        splitWallAtPoint={splitWallAtPoint}
-        renderFixtures={renderFixtures}
-        baseUnitM={baseUnitM}
-        selectedFixtureId={selectedFixtureId}
-        startPoint={startPoint}
-        hoverPoint={hoverPoint}
-        drawPreviewMeasurement={drawPreviewMeasurement}
-        draggedVertexMeasurements={draggedVertexMeasurements}
-      />
+      <div className="stage">
+        <div className="place-switches view-switch">
+          {VIEW_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              className={activeView === tab.value ? 'place-switch place-switch-active' : 'place-switch'}
+              onClick={() => setActiveView(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeView === 'plan' && (
+          <FloorPlanCanvas
+            svgRef={svgRef}
+            camera={camera}
+            renderMode={renderMode}
+            recenterAndFitCamera={recenterAndFitCamera}
+            savePlan={savePlan}
+            saveAsNewPlan={saveAsNewPlan}
+            openLoadDialog={openLoadDialog}
+            clearPlan={clearPlan}
+            exportPlanImage={exportPlanImage}
+            onMouseMove={onMouseMove}
+            onMouseDown={onMouseDown}
+            onMouseUp={onMouseUp}
+            onCanvasMouseLeave={onCanvasMouseLeave}
+            onCanvasClick={onCanvasClick}
+            onCanvasContextMenu={onCanvasContextMenu}
+            rooms={rooms}
+            floorColorByValue={floorColorByValue}
+            hasHydrated={hasHydrated}
+            activeFloorIndex={activeFloorIndex}
+            floorsCount={floors.length}
+            goToLowerFloor={goToLowerFloor}
+            goToUpperFloor={goToUpperFloor}
+            lowerFloorsCount={previousFloorWallLayers.length}
+            selectedRoomKey={selectedRoomKey}
+            hoverRoomKey={hoverRoomKey}
+            toolMode={toolMode}
+            setHoverRoomKey={setHoverRoomKey}
+            selectRoom={selectRoom}
+            previousFloorWallLayers={previousFloorWallLayers}
+            effectiveWalls={effectiveWalls}
+            wallStyle={wallStyle}
+            selectedWallId={selectedWallId}
+            hoverWallId={hoverWallId}
+            walls={walls}
+            splitWallAtPoint={splitWallAtPoint}
+            renderFixtures={renderFixtures}
+            baseUnitM={baseUnitM}
+            selectedFixtureId={selectedFixtureId}
+            startPoint={startPoint}
+            hoverPoint={hoverPoint}
+            drawPreviewMeasurement={drawPreviewMeasurement}
+            draggedVertexMeasurements={draggedVertexMeasurements}
+            roofs={roofs}
+            roofDraftPoints={roofDraftPoints}
+            selectedRoofId={selectedRoofId}
+            drawKind={drawKind}
+          />
+        )}
+        {activeView === '3d' && (
+          <Scene3D
+            model3D={windowedModel3D}
+            viewFloorIndex={clampedViewFloorIndex}
+            maxViewFloorIndex={maxViewFloorIndex}
+            floorsCount={floors.length}
+            onGoUpFloor={goUpViewFloor}
+            onGoDownFloor={goDownViewFloor}
+          />
+        )}
+        {activeView === 'elevation' && (
+          <ElevationView
+            model3D={windowedModel3D}
+            viewFloorIndex={clampedViewFloorIndex}
+            maxViewFloorIndex={maxViewFloorIndex}
+            floorsCount={floors.length}
+            onGoUpFloor={goUpViewFloor}
+            onGoDownFloor={goDownViewFloor}
+          />
+        )}
+      </div>
 
       <PlanLibraryDialog
         open={loadDialogOpen}

@@ -1,10 +1,5 @@
-import { GRID } from '../config/constants';
+import { mToPx, pxToM, stepCountForRunM } from '../core/geometry';
 import { isWallOpeningFixture, normalizeFurnitureType } from '../editor/utils';
-
-// DIN 18065 comfort formula (2*riser + going = 590-650mm) centers on a
-// ~280mm going for domestic stairs; stair tread counts are derived from it
-// so drawn treads stay a realistic size across any stair preset dimensions.
-const DIN_GOING_M = 0.28;
 
 export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtureId, renderMode }) {
   const isTechnical = renderMode === 'technical' || renderMode === 'utilities';
@@ -12,7 +7,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
 
   return renderFixtures.map((fixture) => {
     if (isWallOpeningFixture(fixture)) {
-      const widthPx = ((Number(fixture.widthM) || 0.8) / baseUnitM) * GRID;
+      const widthPx = mToPx(Number(fixture.widthM) || 0.8, baseUnitM);
       const half = widthPx / 2;
       const angle = Number(fixture.angle) || 0;
       const ux = Math.cos(angle);
@@ -61,6 +56,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
 
       if (fixture.kind === 'window') {
         const windowTypeValue = fixture.windowType || 'fixed';
+        const isOpenFrame = windowTypeValue === 'open';
         const tiltApexX = fixture.position.x + openVecX * widthPx * 0.28;
         const tiltApexY = fixture.position.y + openVecY * widthPx * 0.28;
 
@@ -68,7 +64,13 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           <g key={fixture.id}>
             {previewHighlight}
             <g opacity={previewOpacity}>
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={windowStroke} strokeWidth={isSelected ? 3 : 2} strokeLinecap="round" />
+              <line
+                x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={windowStroke}
+                strokeWidth={isSelected ? 3 : 2}
+                strokeLinecap="round"
+                strokeDasharray={isOpenFrame ? '5 4' : undefined}
+              />
               {windowTypeValue === 'swing' && (
                 <>
                   <line x1={hingeX} y1={hingeY} x2={leafEndX} y2={leafEndY} stroke={windowStroke} strokeWidth={isSelected ? 2 : 1.5} strokeLinecap="round" />
@@ -155,8 +157,8 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
       );
     }
 
-    const widthPx = ((Number(fixture.widthM) || 1) / baseUnitM) * GRID;
-    const depthPx = ((Number(fixture.depthM) || 1) / baseUnitM) * GRID;
+    const widthPx = mToPx(Number(fixture.widthM) || 1, baseUnitM);
+    const depthPx = mToPx(Number(fixture.depthM) || 1, baseUnitM);
     const isSelected = !fixture.isPreview && selectedFixtureId === fixture.id;
     const left = fixture.position.x - widthPx / 2;
     const top = fixture.position.y - depthPx / 2;
@@ -1201,11 +1203,7 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
         )}
 
         {isStraightStairs && (() => {
-          // DIN 18065 comfort formula (2*riser + going = 590-650mm) puts a
-          // typical domestic going around 280mm; derive the tread count
-          // from the stair's actual run length instead of a fixed count so
-          // the drawn treads stay a realistic size regardless of preset.
-          const stepCount = Math.max(3, Math.round((Number(fixture.depthM) || 2.5) / DIN_GOING_M));
+          const stepCount = stepCountForRunM(Number(fixture.depthM) || 2.5);
           const treads = [];
           for (let i = 1; i < stepCount; i += 1) {
             const y = top + (depthPx * i) / stepCount;
@@ -1251,8 +1249,8 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           // Winder treads narrow toward the inner radius, so DIN 18065 sizes
           // them by the going measured at the walking line (here, the
           // radius midpoint) rather than a straight-run going.
-          const walkingLineArcM = midR * (Math.PI / 2) * (baseUnitM / GRID);
-          const stepCount = Math.max(3, Math.round(walkingLineArcM / DIN_GOING_M));
+          const walkingLineArcM = pxToM(midR * (Math.PI / 2), baseUnitM);
+          const stepCount = stepCountForRunM(walkingLineArcM);
           const treads = [];
           for (let i = 1; i < stepCount; i += 1) {
             const deg = angleStart + ((angleEnd - angleStart) * i) / stepCount;
@@ -1290,8 +1288,8 @@ export default function FixtureLayer({ renderFixtures, baseUnitM, selectedFixtur
           const cx = fixture.position.x;
           const cy = fixture.position.y;
           const midR = (rInner + rOuter) / 2;
-          const walkingLineCircumferenceM = 2 * Math.PI * midR * (baseUnitM / GRID);
-          const stepCount = Math.max(6, Math.round(walkingLineCircumferenceM / DIN_GOING_M));
+          const walkingLineCircumferenceM = pxToM(2 * Math.PI * midR, baseUnitM);
+          const stepCount = stepCountForRunM(walkingLineCircumferenceM, 6);
           const treads = Array.from({ length: stepCount }).map((_, i) => {
             const deg = (i / stepCount) * 360;
             const rad = (deg * Math.PI) / 180;

@@ -1,5 +1,5 @@
-import { EPS, SNAP_RADIUS } from '../config/constants';
-import { dist, getSvgPoint, pointToSegmentDistance, snapToGrid } from '../core/geometry';
+import { SNAP_RADIUS } from '../config/constants';
+import { dist, getSvgPoint, pointToSegmentDistance, snapToGrid, worldToLocal } from '../core/geometry';
 import { isWallOpeningFixture } from './utils';
 
 export function findWallAtPointInWalls(walls, point, maxDistance = 10) {
@@ -49,14 +49,9 @@ export function findFixtureAtPointInFixtures(fixtures, point, baseUnitM, grid) {
 
     const widthPx = ((Number(fixture.widthM) || 1) / baseUnitM) * grid;
     const depthPx = ((Number(fixture.depthM) || 1) / baseUnitM) * grid;
-    const angle = (Number(fixture.angleDeg) || 0) * (Math.PI / 180);
-    const cosA = Math.cos(-angle);
-    const sinA = Math.sin(-angle);
-    const dx = point.x - fixture.position.x;
-    const dy = point.y - fixture.position.y;
-    const localX = (dx * cosA) - (dy * sinA);
-    const localY = (dx * sinA) + (dy * cosA);
-    if (Math.abs(localX) <= widthPx / 2 && Math.abs(localY) <= depthPx / 2) return fixture;
+    const angleDeg = Number(fixture.angleDeg) || 0;
+    const local = worldToLocal(point, fixture.position, angleDeg);
+    if (Math.abs(local.x) <= widthPx / 2 && Math.abs(local.y) <= depthPx / 2) return fixture;
   }
   return null;
 }
@@ -76,8 +71,4 @@ export function getSnappedPointForEvent(event, svg, walls) {
     }
   }
   return best;
-}
-
-export function pointsEqualEps(a, b) {
-  return dist(a, b) < EPS;
 }

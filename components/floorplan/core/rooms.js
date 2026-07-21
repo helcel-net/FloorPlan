@@ -1,5 +1,6 @@
 import { EPS, GRID, GRID_CELL_M2 } from '../config/constants';
-import { regionIdFromCentroid, toGridVertexKey, toKey } from './geometry';
+import { mToPx, pointToSegmentDistance, regionIdFromCentroid, toGridVertexKey, toKey } from './geometry';
+import { polygonContainsPoint, signedArea } from './polygonMesh';
 
 // Closets, cupboards, and technical shafts are typically 0.4-0.7m in their
 // narrow dimension, so the minimum has to clear that band to keep them from
@@ -12,16 +13,6 @@ const MIN_ROOM_AREA_M2 = 0.8;
 function parseVertexKey(key) {
   const [x, y] = key.split(',').map(Number);
   return { x, y };
-}
-
-function polygonSignedArea(vertices) {
-  let sum = 0;
-  for (let i = 0; i < vertices.length; i += 1) {
-    const a = vertices[i];
-    const b = vertices[(i + 1) % vertices.length];
-    sum += (a.x * b.y) - (b.x * a.y);
-  }
-  return sum / 2;
 }
 
 function polygonCentroid(vertices, signedArea) {
@@ -48,43 +39,6 @@ function polygonCentroid(vertices, signedArea) {
   return { x: cx / denom, y: cy / denom };
 }
 
-function pointOnSegment(point, a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const cross = ((point.x - a.x) * dy) - ((point.y - a.y) * dx);
-  if (Math.abs(cross) > EPS) return false;
-  const dot = ((point.x - a.x) * (point.x - b.x)) + ((point.y - a.y) * (point.y - b.y));
-  return dot <= EPS;
-}
-
-function pointInPolygon(point, polygon) {
-  let inside = false;
-
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
-    const a = polygon[j];
-    const b = polygon[i];
-
-    if (pointOnSegment(point, a, b)) return true;
-
-    const intersects = ((a.y > point.y) !== (b.y > point.y))
-      && (point.x < ((b.x - a.x) * (point.y - a.y)) / ((b.y - a.y) || EPS) + a.x);
-    if (intersects) inside = !inside;
-  }
-
-  return inside;
-}
-
-function pointToSegmentDistance(point, a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len2 = (dx * dx) + (dy * dy);
-  if (len2 < EPS) return Math.hypot(point.x - a.x, point.y - a.y);
-  const t = Math.max(0, Math.min(1, (((point.x - a.x) * dx) + ((point.y - a.y) * dy)) / len2));
-  const px = a.x + (t * dx);
-  const py = a.y + (t * dy);
-  return Math.hypot(point.x - px, point.y - py);
-}
-
 function minDistanceToPolygonEdges(point, polygon) {
   let minD = Infinity;
   for (let i = 0; i < polygon.length; i += 1) {
@@ -100,16 +54,16 @@ function canPlaceCircleInRoom(vertices, cells, requiredDiameterPx, centroid) {
   if (requiredRadius <= EPS) return true;
 
   // Try centroid first; if it fails, try cell centers (robust for irregular shapes).
-  if (pointInPolygon(centroid, vertices) && minDistanceToPolygonEdges(centroid, vertices) + EPS >= requiredRadius) {
+  if (polygonContainsPoint(centroid, vertices) && minDistanceToPolygonEdges(centroid, vertices) + EPS >= requiredRadius) {
     return true;
   }
 
   for (const cell of cells) {
     const p = { x: (cell.x + 0.5) * GRID, y: (cell.y + 0.5) * GRID };
-    if (!pointInPolygon(p, vertices)) continue;
+    if (!polygonContainsPoint(p, vertices)) continue;
     if (minDistanceToPolygonEdges(p, vertices) + EPS >= requiredRadius) return true;
     const p2 = { x: (cell.x) * GRID, y: (cell.y) * GRID };
-    if (!pointInPolygon(p2, vertices)) continue;
+    if (!polygonContainsPoint(p2, vertices)) continue;
     if (minDistanceToPolygonEdges(p2, vertices) + EPS >= requiredRadius) return true;
   }
 
@@ -255,12 +209,12 @@ function buildFacesFromWalls(walls) {
 
       if (cur.from === seed.from && cur.to === seed.to && cur.wallId === seed.wallId) {
         const points = cycleVertices.map(parseVertexKey);
-        const signedArea = polygonSignedArea(points);
-        if (Math.abs(signedArea) > EPS && cycleVertices.length >= 3) {
+        const area = signedArea(points);
+        if (Math.abs(area) > EPS && cycleVertices.length >= 3) {
           faces.push({
             vertexKeys: cycleVertices,
             wallIds: Array.from(new Set(cycleEdges.map((e) => e.wallId))),
-            signedArea
+            signedArea: area
           });
         }
         break;
@@ -301,7 +255,7 @@ function rasterizeRoomCellsFromPolygon(vertices) {
   for (let y = minCellY; y <= maxCellY; y += 1) {
     for (let x = minCellX; x <= maxCellX; x += 1) {
       const center = { x: (x + 0.5) * GRID, y: (y + 0.5) * GRID };
-      if (!pointInPolygon(center, vertices)) continue;
+      if (!polygonContainsPoint(center, vertices)) continue;
       cells.push({ x, y, coverage: 1 });
     }
   }
@@ -310,7 +264,7 @@ function rasterizeRoomCellsFromPolygon(vertices) {
 }
 
 export function buildRoomRegions(walls, _wallThicknessByTypeM, baseUnitM) {
-  if (!walls?.length) return[];// || !Number.isFinite(baseUnitM) || baseUnitM <= EPS) return [];
+  if (!walls?.length) return [];
 
   const faces = buildFacesFromWalls(walls);
   if (!faces.length) return [];
@@ -327,7 +281,7 @@ export function buildRoomRegions(walls, _wallThicknessByTypeM, baseUnitM) {
     const centroid = polygonCentroid(vertices, face.signedArea);
     const { widthM, heightM } = computePrincipalExtentsM(cells, baseUnitM);
     if (widthM < MIN_ROOM_DIMENSION_M || heightM < MIN_ROOM_DIMENSION_M) continue;
-    const minRoomFitDiameterPx = (MIN_ROOM_FIT_DIAMETER_M / baseUnitM) * GRID;
+    const minRoomFitDiameterPx = mToPx(MIN_ROOM_FIT_DIAMETER_M, baseUnitM);
     if (!canPlaceCircleInRoom(vertices, cells, minRoomFitDiameterPx, centroid)) continue;
 
     const areaPx2 = Math.abs(face.signedArea);
@@ -479,142 +433,3 @@ export function isRegionBoundedByClosedConnectedWalls(region, walls) {
   return activeEdges.length >= vertices.length;
 }
 
-function vertexIsCorner(dirs) {
-  if (!dirs.length) return false;
-  if (dirs.length === 1) return true;
-
-  for (let i = 0; i < dirs.length; i += 1) {
-    for (let j = i + 1; j < dirs.length; j += 1) {
-      const dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
-      if (Math.abs(dot) < 0.999) return true;
-    }
-  }
-
-  return false;
-}
-
-export function collectRoomCornerVertexKeysFromCells(cells) {
-  const roomCells = new Set((cells || []).map((c) => toKey(c.x, c.y)));
-  const vertexDirs = new Map();
-
-  function addDir(vx, vy, dx, dy) {
-    const key = toKey(vx, vy);
-    if (!vertexDirs.has(key)) vertexDirs.set(key, []);
-    vertexDirs.get(key).push({ dx, dy });
-  }
-
-  for (const cell of cells || []) {
-    const x = cell.x;
-    const y = cell.y;
-
-    if (!roomCells.has(toKey(x - 1, y))) {
-      addDir(x, y, 0, 1);
-      addDir(x, y + 1, 0, -1);
-    }
-    if (!roomCells.has(toKey(x + 1, y))) {
-      addDir(x + 1, y, 0, 1);
-      addDir(x + 1, y + 1, 0, -1);
-    }
-    if (!roomCells.has(toKey(x, y - 1))) {
-      addDir(x, y, 1, 0);
-      addDir(x + 1, y, -1, 0);
-    }
-    if (!roomCells.has(toKey(x, y + 1))) {
-      addDir(x, y + 1, 1, 0);
-      addDir(x + 1, y + 1, -1, 0);
-    }
-  }
-
-  const out = [];
-  for (const [vertexKey, dirs] of vertexDirs.entries()) {
-    if (!vertexIsCorner(dirs)) continue;
-    const [vx, vy] = vertexKey.split(',').map(Number);
-    out.push(toKey(vx * GRID, vy * GRID));
-  }
-
-  return out;
-}
-
-export function collectRoomCornerVertexKeysFromWalls(walls, wallIds) {
-  const ids = new Set(wallIds || []);
-  const dirsByVertex = new Map();
-
-  function addDir(key, dx, dy) {
-    if (!dirsByVertex.has(key)) dirsByVertex.set(key, []);
-    dirsByVertex.get(key).push({ dx, dy });
-  }
-
-  for (const wall of walls || []) {
-    if (!ids.has(wall.id)) continue;
-
-    const dx = wall.end.x - wall.start.x;
-    const dy = wall.end.y - wall.start.y;
-    const len = Math.hypot(dx, dy);
-    if (len < EPS) continue;
-
-    const ux = dx / len;
-    const uy = dy / len;
-    const sKey = toGridVertexKey(wall.start);
-    const eKey = toGridVertexKey(wall.end);
-
-    addDir(sKey, ux, uy);
-    addDir(eKey, -ux, -uy);
-  }
-
-  const out = [];
-  for (const [vertexKey, dirs] of dirsByVertex.entries()) {
-    if (vertexIsCorner(dirs)) out.push(vertexKey);
-  }
-
-  return out;
-}
-
-export function collectRoomCornerEndpointHandles(walls, room) {
-  const cornerKeys = new Set([
-    ...collectRoomCornerVertexKeysFromCells(room?.cells || []),
-    ...collectRoomCornerVertexKeysFromWalls(walls, room?.wallIds || [])
-  ]);
-  const roomWallIds = new Set(room?.wallIds || []);
-  const handles = [];
-
-  for (const wall of walls || []) {
-    if (!roomWallIds.has(wall.id)) continue;
-    if (cornerKeys.has(toGridVertexKey(wall.start))) handles.push({ wallId: wall.id, endpoint: 'start' });
-    if (cornerKeys.has(toGridVertexKey(wall.end))) handles.push({ wallId: wall.id, endpoint: 'end' });
-  }
-
-  return handles;
-}
-
-export function collectRoomCornerVertexKeys(walls, room) {
-  return Array.from(new Set([
-    ...collectRoomCornerVertexKeysFromCells(room?.cells || []),
-    ...collectRoomCornerVertexKeysFromWalls(walls, room?.wallIds || [])
-  ]));
-}
-
-export function collectRoomBoundaryVertexKeys(walls, room) {
-  const roomWallIds = new Set(room?.wallIds || []);
-  const keys = new Set();
-
-  for (const wall of walls || []) {
-    if (!roomWallIds.has(wall.id)) continue;
-    keys.add(toGridVertexKey(wall.start));
-    keys.add(toGridVertexKey(wall.end));
-  }
-
-  return Array.from(keys);
-}
-
-export function collectRoomBoundaryEndpointHandles(walls, room) {
-  const roomWallIds = new Set(room?.wallIds || []);
-  const handles = [];
-
-  for (const wall of walls || []) {
-    if (!roomWallIds.has(wall.id)) continue;
-    handles.push({ wallId: wall.id, endpoint: 'start' });
-    handles.push({ wallId: wall.id, endpoint: 'end' });
-  }
-
-  return handles;
-}

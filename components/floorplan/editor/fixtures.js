@@ -68,6 +68,7 @@ export function buildPlacedWindowFixture({
   wall,
   windowType,
   windowWidthM,
+  windowHeightPreset = 'standard',
   isPreview = false
 }) {
   const { position, angle, sideValue } = buildWallOpeningPlacement(rawPoint, wall);
@@ -75,6 +76,7 @@ export function buildPlacedWindowFixture({
     id,
     kind: 'window',
     windowType,
+    windowHeightPreset,
     swingSide: sideValue,
     widthM: Number(windowWidthM),
     wallId: wall.id,

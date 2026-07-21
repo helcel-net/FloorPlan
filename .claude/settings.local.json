@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(command -v node)",
+      "Bash(find / -maxdepth 4 -iname \"yarn*\" -not -path \"*/node_modules/*\")",
+      "Bash(corepack --version)",
+      "Read(//nix/store/k6pf3mjsk6wj16ipyjdz1j5dhscxwzlc-nodejs-22.22.2/bin/**)",
+      "Bash(/nix/store/k6pf3mjsk6wj16ipyjdz1j5dhscxwzlc-nodejs-22.22.2/bin/node --version)",
+      "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('exports'\\), indent=2\\)\\)\")"
+    ]
+  }
+}

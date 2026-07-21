@@ -1,5 +1,5 @@
 import { EPS, GRID } from '../config/constants';
-import { dist, getSvgPoint, snapToGrid } from '../core/geometry';
+import { dist, getSvgPoint, pxToM, snapToGrid } from '../core/geometry';
 import { projectPointOnWall } from '../editor/utils';
 import FixtureLayer from './FixtureLayer';
 
@@ -45,7 +45,11 @@ export default function FloorPlanCanvas({
   startPoint,
   hoverPoint,
   drawPreviewMeasurement,
-  draggedVertexMeasurements
+  draggedVertexMeasurements,
+  roofs,
+  roofDraftPoints,
+  selectedRoofId,
+  drawKind
 }) {
   const isSchematic = renderMode === 'technical' || renderMode === 'utilities';
 
@@ -308,7 +312,7 @@ export default function FloorPlanCanvas({
           const p2 = { x: dimEnd.x + nx * offset, y: dimEnd.y + ny * offset };
           const midX = (p1.x + p2.x) / 2;
           const midY = (p1.y + p2.y) / 2;
-          const meters = (clearLen / GRID) * baseUnitM;
+          const meters = pxToM(clearLen, baseUnitM);
 
           return (
             <g key={`dim-${wall.id}`} opacity={0.85}>
@@ -338,7 +342,7 @@ export default function FloorPlanCanvas({
           );
         })}
 
-        {startPoint && hoverPoint && toolMode === 'draw' && (
+        {startPoint && hoverPoint && toolMode === 'draw' && drawKind === 'wall' && (
           <>
             <line
               x1={startPoint.x}
@@ -363,7 +367,35 @@ export default function FloorPlanCanvas({
         ))}
 
         {hoverPoint && <circle cx={hoverPoint.x} cy={hoverPoint.y} r="4" fill="#264653" />}
-        {startPoint && toolMode === 'draw' && <circle cx={startPoint.x} cy={startPoint.y} r="6" fill="#d4503b" />}
+        {startPoint && toolMode === 'draw' && drawKind === 'wall' && <circle cx={startPoint.x} cy={startPoint.y} r="6" fill="#d4503b" />}
+
+        {(roofs || []).map((roof) => (
+          <polygon
+            key={roof.id}
+            points={(roof.polygon || []).map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="#8a5a3b"
+            fillOpacity={selectedRoofId === roof.id ? 0.22 : 0.1}
+            stroke="#8a5a3b"
+            strokeWidth={selectedRoofId === roof.id ? 2.5 : 1.5}
+            strokeDasharray="9 6"
+            pointerEvents="none"
+          />
+        ))}
+
+        {toolMode === 'draw' && drawKind === 'roof' && roofDraftPoints && roofDraftPoints.length > 0 && (
+          <>
+            <polyline
+              points={[...roofDraftPoints, ...(hoverPoint ? [hoverPoint] : [])].map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke="#d4503b"
+              strokeWidth={2}
+              strokeDasharray="6 6"
+            />
+            {roofDraftPoints.map((p, i) => (
+              <circle key={`roof-draft-${i}`} cx={p.x} cy={p.y} r={i === 0 ? 6 : 4} fill="#d4503b" />
+            ))}
+          </>
+        )}
       </svg>
     </div>
   );
